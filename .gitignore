@@ -13,7 +13,7 @@ dist/
 .idea/
 
 # Environment & Secrets
-.env
+# .env
 *.db
 
 # OS
