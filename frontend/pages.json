@@ -27,6 +27,10 @@
     {
       "path": "pages/legal/account-delete",
       "style": { "navigationBarTitleText": "账号删除说明" }
+    },
+    {
+      "path": "pages/legal/support",
+      "style": { "navigationBarTitleText": "支持" }
     }
   ],
   "tabBar": {

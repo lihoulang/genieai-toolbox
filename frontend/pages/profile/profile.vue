@@ -53,6 +53,9 @@
       <view class="setting-item" @click="goAccountDeletion">
         <text>🧾 注销说明</text>
       </view>
+      <view class="setting-item" @click="goSupportLink">
+        <text>🛟 支持链接</text>
+      </view>
       <view class="setting-item" @click="toggleDarkMode">
         <text>🌙 深色模式</text>
         <text class="setting-val">{{ isDark ? '开' : '关' }}</text>
@@ -76,8 +79,9 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { API_BASE } from '../../config.js';
+import { ACCOUNT_DELETION_URL, API_BASE, PRIVACY_POLICY_URL, SUPPORT_URL } from '../../config.js';
 import { clearAuthStorage, ensureLoggedIn, redirectToLogin, requestWithAuth } from '../../utils/auth.js';
+import { openExternalUrl } from '../../utils/external.js';
 
 const userId = ref(null);
 const username = ref('');
@@ -148,11 +152,15 @@ const toggleDarkMode = () => {
 };
 
 const goPrivacyPolicy = () => {
-  uni.navigateTo({ url: '/pages/legal/privacy' });
+  openExternalUrl(PRIVACY_POLICY_URL, '/pages/legal/privacy');
 };
 
 const goAccountDeletion = () => {
-  uni.navigateTo({ url: '/pages/legal/account-delete' });
+  openExternalUrl(ACCOUNT_DELETION_URL, '/pages/legal/account-delete');
+};
+
+const goSupportLink = () => {
+  openExternalUrl(SUPPORT_URL, '/pages/legal/support');
 };
 
 const handleDeleteAccount = () => {
