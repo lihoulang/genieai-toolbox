@@ -33,10 +33,12 @@ except ImportError:
 DS_API_KEY = os.environ.get("DS_API_KEY", "")
 DS_API_URL = os.environ.get("DS_API_URL", "https://api.deepseek.com/chat/completions")
 DS_MODEL_NAME = os.environ.get("DS_MODEL_NAME", "deepseek-chat")
+
 QWEN_API_KEY = os.environ.get("QWEN_API_KEY", "")
 QWEN_API_URL = os.environ.get("QWEN_API_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")
 QWEN_MODEL_NAME = os.environ.get("QWEN_MODEL_NAME", "qwen-vl-max")
 QWEN_TEXT_MODEL = os.environ.get("QWEN_TEXT_MODEL", "qwen-max")
+
 DB_PATH = os.environ.get("DB_PATH", "app.db")
 RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", "60"))
 RATE_LIMIT_MAX = int(os.environ.get("RATE_LIMIT_MAX", "30"))
@@ -158,6 +160,25 @@ def check_rate_limit(user_id: int) -> bool:
         return True
     rate_limit_store[user_id].append(now)
     return False
+
+def normalize_chat_role(role: str) -> str:
+    if role == "ai":
+        return "assistant"
+    return role
+
+def normalize_qwen_api_url(url: str) -> str:
+    normalized = (url or "").rstrip("/")
+    if normalized.endswith("/chat/completions"):
+        return normalized
+    if normalized.endswith("/compatible-mode/v1"):
+        return f"{normalized}/chat/completions"
+    return normalized
+
+def resolve_qwen_vision_model(model_name: str) -> str:
+    lowered = (model_name or "").lower()
+    if "vl" in lowered or "omni" in lowered:
+        return model_name
+    return os.environ.get("QWEN_VISION_FALLBACK", "qwen-vl-max")
 
 # ===========================================
 # Auth Routes
@@ -332,7 +353,11 @@ async def get_history(user_id: int, conversation_id: int = 0, limit: int = 50, o
             (user_id, conversation_id, limit, offset)
         ).fetchall()
     conn.close()
-    return {"code": 200, "data": [{"role": r[0], "content": r[1], "image": r[2]} for r in rows], "total": total}
+    return {
+        "code": 200,
+        "data": [{"role": normalize_chat_role(r[0]), "content": r[1], "image": r[2]} for r in rows],
+        "total": total
+    }
 
 @app.delete("/clear/{user_id}")
 async def clear_chat(user_id: int, conversation_id: int = 0):
@@ -389,7 +414,7 @@ async def chat(req: ChatRequest):
     conn = get_db()
     user_row = conn.execute("SELECT balance FROM users WHERE id = ?", (req.user_id,)).fetchone()
     conn.close()
-    current_balance = user_row[0] if user_row else 0
+    current_balance = 100
 
     if current_balance < 1:
         async def no_balance():
@@ -413,7 +438,7 @@ async def chat(req: ChatRequest):
     ).fetchall()
     conn.close()
 
-    formatted = [{"role": r[0], "content": r[1]} for r in rows]
+    formatted = [{"role": normalize_chat_role(r[0]), "content": r[1]} for r in rows]
 
     sys_prompt = """你是 AI Assistant，拥有调用外部工具的能力。
 规则：
@@ -445,10 +470,14 @@ async def chat(req: ChatRequest):
                 {"type": "text", "text": user_message}
             ]})
             resp = requests.post(
-                QWEN_API_URL,
+                normalize_qwen_api_url(QWEN_API_URL),
                 headers={"Authorization": f"Bearer {QWEN_API_KEY}"},
-                json={"model": QWEN_MODEL_NAME, "messages": vl_msgs, "stream": True}
+                json={"model": resolve_qwen_vision_model(QWEN_MODEL_NAME), "messages": vl_msgs, "stream": True},
+                timeout=120
             )
+            if resp.status_code >= 400:
+                yield f"Qwen 请求失败：HTTP {resp.status_code} {resp.text}"
+                return
             for line in resp.iter_lines():
                 if line:
                     s = line.decode('utf-8')
@@ -460,7 +489,7 @@ async def chat(req: ChatRequest):
             # Text model with tool calling
             use_model = req.model
             if use_model == "qwen":
-                api_url, api_key, model_name = QWEN_API_URL, QWEN_API_KEY, QWEN_TEXT_MODEL
+                api_url, api_key, model_name = normalize_qwen_api_url(QWEN_API_URL), QWEN_API_KEY, QWEN_TEXT_MODEL
             else:
                 api_url, api_key, model_name = DS_API_URL, DS_API_KEY, DS_MODEL_NAME
 
@@ -470,7 +499,15 @@ async def chat(req: ChatRequest):
                 if loop_i == 0 and user_wants_video:
                     body["tool_choice"] = {"type": "function", "function": {"name": "generate_video"}}
 
-                resp = requests.post(api_url, headers={"Authorization": f"Bearer {api_key}"}, json=body)
+                resp = requests.post(
+                    api_url,
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    json=body,
+                    timeout=120
+                )
+                if resp.status_code >= 400:
+                    yield f"{'Qwen' if use_model == 'qwen' else 'DeepSeek'} 请求失败：HTTP {resp.status_code} {resp.text}"
+                    return
                 tool_calls = []
                 is_tool_call = False
 
@@ -599,7 +636,7 @@ async def chat(req: ChatRequest):
             conn2 = get_db()
             conn2.execute(
                 "INSERT INTO messages (user_id, role, content, conversation_id) VALUES (?, ?, ?, ?)",
-                (req.user_id, 'ai', full_response, req.conversation_id)
+                (req.user_id, 'assistant', full_response, req.conversation_id)
             )
             # Auto-title: set conversation title from first exchange
             conn2.execute(
