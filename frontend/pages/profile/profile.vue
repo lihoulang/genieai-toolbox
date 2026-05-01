@@ -47,9 +47,18 @@
     <!-- Settings -->
     <view class="section-card">
       <text class="section-title">设置</text>
+      <view class="setting-item" @click="goPrivacyPolicy">
+        <text>📄 隐私政策</text>
+      </view>
+      <view class="setting-item" @click="goAccountDeletion">
+        <text>🧾 注销说明</text>
+      </view>
       <view class="setting-item" @click="toggleDarkMode">
         <text>🌙 深色模式</text>
         <text class="setting-val">{{ isDark ? '开' : '关' }}</text>
+      </view>
+      <view class="setting-item setting-danger" @click="handleDeleteAccount">
+        <text>🗑️ 删除账号</text>
       </view>
       <view class="setting-item" @click="handleLogout">
         <text>🚪 退出登录</text>
@@ -68,6 +77,7 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { API_BASE } from '../../config.js';
+import { clearAuthStorage, ensureLoggedIn, redirectToLogin, requestWithAuth } from '../../utils/auth.js';
 
 const userId = ref(null);
 const username = ref('');
@@ -83,7 +93,7 @@ const displayName = computed(() => nickname.value || username.value || 'User');
 const fetchUserInfo = async () => {
   if (!userId.value) return;
   try {
-    const res = await uni.request({ url: `${API_BASE}/user/info/${userId.value}` });
+    const res = await requestWithAuth({ url: `${API_BASE}/user/info/${userId.value}` });
     if (res.data.code === 200) {
       username.value = res.data.username;
       balance.value = res.data.balance;
@@ -98,7 +108,7 @@ const handleSign = async () => {
     uni.showToast({ title: '今天已签到', icon: 'none' }); return;
   }
   try {
-    const res = await uni.request({ url: `${API_BASE}/user/sign/${userId.value}`, method: 'POST' });
+    const res = await requestWithAuth({ url: `${API_BASE}/user/sign/${userId.value}`, method: 'POST' });
     if (res.data.code === 200) {
       uni.showToast({ title: res.data.msg, icon: 'none' });
       hasSignedToday.value = true;
@@ -113,13 +123,21 @@ const handleSign = async () => {
 
 const fetchBalanceLogs = async () => {
   try {
-    const res = await uni.request({ url: `${API_BASE}/user/balance_logs/${userId.value}` });
+    const res = await requestWithAuth({ url: `${API_BASE}/user/balance_logs/${userId.value}` });
     if (res.data.code === 200) balanceLogs.value = res.data.data;
   } catch (e) {}
 };
 
 const toggleDarkMode = () => {
   isDark.value = !isDark.value;
+  if (typeof document === 'undefined') {
+    if (isDark.value) {
+      uni.setStorageSync('dark_mode', true);
+    } else {
+      uni.removeStorageSync('dark_mode');
+    }
+    return;
+  }
   if (isDark.value) {
     document.documentElement.classList.add('dark');
     uni.setStorageSync('dark_mode', true);
@@ -129,21 +147,58 @@ const toggleDarkMode = () => {
   }
 };
 
+const goPrivacyPolicy = () => {
+  uni.navigateTo({ url: '/pages/legal/privacy' });
+};
+
+const goAccountDeletion = () => {
+  uni.navigateTo({ url: '/pages/legal/account-delete' });
+};
+
+const handleDeleteAccount = () => {
+  uni.showModal({
+    title: '删除账号',
+    content: '删除后将清空聊天记录、余额记录和登录态，且无法恢复。确认继续？',
+    confirmColor: '#d93025',
+    success: async (res) => {
+      if (!res.confirm) return;
+      try {
+        const resp = await requestWithAuth({
+          url: `${API_BASE}/user/account/${userId.value}`,
+          method: 'DELETE',
+        });
+        if (resp.data.code === 200) {
+          clearAuthStorage();
+          uni.showToast({ title: '账号已删除', icon: 'none' });
+          setTimeout(() => {
+            uni.reLaunch({ url: '/pages/login/login' });
+          }, 500);
+        } else {
+          uni.showToast({ title: resp.data.msg || '删除失败', icon: 'none' });
+        }
+      } catch (e) {}
+    }
+  });
+};
+
 const handleLogout = () => {
   uni.showModal({
     title: '退出登录', content: '确认退出？',
-    success: (res) => {
+    success: async (res) => {
       if (!res.confirm) return;
-      uni.removeStorageSync('user_id');
-      uni.removeStorageSync('username');
-      uni.redirectTo({ url: '/pages/login/login' });
+      try {
+        await requestWithAuth({ url: `${API_BASE}/logout`, method: 'POST' });
+      } catch (e) {}
+      clearAuthStorage();
+      uni.reLaunch({ url: '/pages/login/login' });
     }
   });
 };
 
 onShow(() => {
+  if (!ensureLoggedIn()) return;
   userId.value = uni.getStorageSync('user_id');
-  if (!userId.value) { uni.redirectTo({ url: '/pages/login/login' }); return; }
+  if (!userId.value) { redirectToLogin('请先登录'); return; }
   fetchUserInfo();
   fetchBalanceLogs();
 });
@@ -180,6 +235,7 @@ onShow(() => {
 .log-time { font-size: 11px; color: var(--text-tertiary); }
 
 .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border-color); font-size: 15px; color: var(--text-primary); cursor: pointer; }
+.setting-danger { color: #d93025; }
 .setting-val { color: var(--text-secondary); font-size: 14px; }
 
 .footer { text-align: center; padding: 24px; }

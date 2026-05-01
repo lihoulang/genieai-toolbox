@@ -31,6 +31,7 @@
 <script setup>
 import { ref } from 'vue';
 import { API_BASE } from '../../config.js';
+import { clearAuthStorage } from '../../utils/auth.js';
 
 const username = ref('');
 const password = ref('');
@@ -43,6 +44,7 @@ const handleLogin = async () => {
   }
   isLoading.value = true;
   try {
+    clearAuthStorage();
     const res = await uni.request({
       url: `${API_BASE}/login`,
       method: 'POST',
@@ -51,6 +53,8 @@ const handleLogin = async () => {
     if (res.data.code === 200) {
       uni.setStorageSync('user_id', res.data.user_id);
       uni.setStorageSync('username', username.value);
+      uni.setStorageSync('access_token', res.data.access_token);
+      uni.setStorageSync('token_expires_at', res.data.expires_at);
       uni.showToast({ title: '登录成功', icon: 'none' });
       setTimeout(() => { uni.switchTab({ url: '/pages/index/index' }); }, 800);
     } else {

@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 /venv/
+backend/venv/
 __pycache__/
 *.pyc
 
@@ -16,6 +17,7 @@ dist/
 # Environment & Secrets
 # .env
 *.db
+backend/db.sqlite3
 
 # OS
 .DS_Store

@@ -2,7 +2,7 @@
 export default {
   onLaunch: function () {
     const dark = uni.getStorageSync('dark_mode');
-    if (dark) {
+    if (dark && typeof document !== 'undefined') {
       document.documentElement.classList.add('dark');
     }
   },

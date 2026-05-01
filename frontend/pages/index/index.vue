@@ -72,7 +72,7 @@
           <view class="msg-body">
             <view class="content" @longpress="onLongPress(index, msg)">
               <image v-if="msg.image && msg.role === 'user'" :src="msg.image" class="chat-img" mode="widthFix" />
-              <img v-if="msg.aiImage" :src="msg.aiImage" referrerpolicy="no-referrer" class="chat-img" />
+              <image v-if="msg.aiImage" :src="msg.aiImage" class="chat-img" mode="widthFix" />
               <video v-if="msg.video" :src="msg.video" controls class="chat-video"></video>
               <view v-if="msg.role === 'ai' && !msg.content && isLoading" class="typing-indicator">
                 <view class="dot"></view><view class="dot"></view><view class="dot"></view>
@@ -83,6 +83,7 @@
             <!-- Action bar -->
             <view class="msg-action-bar" v-if="msg.role === 'ai' && msg.content && !isLoading">
               <view class="msg-action-item" @click.stop="copyText(msg.content)"><text>📋</text></view>
+              <view class="msg-action-item" @click.stop="reportMessage(msg)"><text>⚠️</text></view>
             </view>
             <!-- Long press menu -->
             <view class="longpress-menu" v-if="menuIndex === index" @click.stop>
@@ -139,6 +140,7 @@ import { ref, nextTick, computed } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { marked } from 'marked';
 import { API_BASE } from '../../config.js';
+import { ensureLoggedIn, getAuthHeaders, redirectToLogin, requestWithAuth } from '../../utils/auth.js';
 
 const inputText = ref('');
 const isLoading = ref(false);
@@ -238,17 +240,59 @@ const copyText = (text) => {
   uni.setClipboardData({ data: text, success: () => uni.showToast({ title: '已复制', icon: 'success' }) });
 };
 
+const normalizeAIMessage = (item) => {
+  if (!item?.content) return item;
+  const videoMatch = item.content.match(/\[VIDEO:([\s\S]+?)\]/);
+  if (videoMatch) {
+    item.video = videoMatch[1].trim();
+    item.content = item.content.replace(/\[VIDEO:[\s\S]+?\]/g, '').trim();
+  }
+  const imageMatch = item.content.match(/\[IMAGE:([\s\S]+?)\]/);
+  if (imageMatch) {
+    item.aiImage = imageMatch[1].trim();
+    item.content = item.content.replace(/\[IMAGE:[\s\S]+?\]/g, '').trim();
+  }
+  item.content = item.content.replace(/@@@[\s\S]*?(@@@|$)/g, '').trim();
+  return item;
+};
+
 // Image
+const fileToBase64 = (filePath) => new Promise((resolve, reject) => {
+  // #ifdef H5
+  const reader = new FileReader();
+  fetch(filePath)
+    .then((r) => r.blob())
+    .then((blob) => {
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    })
+    .catch(reject);
+  // #endif
+
+  // #ifndef H5
+  const fs = uni.getFileSystemManager();
+  fs.readFile({
+    filePath,
+    encoding: 'base64',
+    success: (res) => resolve(`data:image/jpeg;base64,${res.data}`),
+    fail: reject,
+  });
+  // #endif
+});
+
 const chooseImage = () => {
   uni.chooseImage({
     count: 1, sizeType: ['compressed'],
-    success: (res) => {
+    success: async (res) => {
       selectedImagePreview.value = res.tempFilePaths[0];
-      const reader = new FileReader();
-      fetch(res.tempFilePaths[0]).then(r => r.blob()).then(blob => {
-        reader.onload = () => { selectedImageBase64.value = reader.result; };
-        reader.readAsDataURL(blob);
-      });
+      try {
+        selectedImageBase64.value = await fileToBase64(res.tempFilePaths[0]);
+      } catch (e) {
+        selectedImagePreview.value = '';
+        selectedImageBase64.value = null;
+        uni.showToast({ title: '图片读取失败', icon: 'none' });
+      }
     }
   });
 };
@@ -258,7 +302,7 @@ const removeImage = () => { selectedImagePreview.value = ''; selectedImageBase64
 const fetchBalance = async () => {
   if (!userId.value) return;
   try {
-    const res = await uni.request({ url: `${API_BASE}/user/balance/${userId.value}` });
+    const res = await requestWithAuth({ url: `${API_BASE}/user/balance/${userId.value}` });
     if (res.data.code === 200) headerBalance.value = res.data.balance;
   } catch (e) {}
 };
@@ -267,14 +311,14 @@ const goProfile = () => { uni.switchTab({ url: '/pages/profile/profile' }); };
 // Conversations
 const loadConversations = async () => {
   try {
-    const res = await uni.request({ url: `${API_BASE}/conversations/${userId.value}` });
+    const res = await requestWithAuth({ url: `${API_BASE}/conversations/${userId.value}` });
     if (res.data.code === 200) conversations.value = res.data.data;
   } catch (e) {}
 };
 
 const createConversation = async () => {
   try {
-    const res = await uni.request({ url: `${API_BASE}/conversation/create/${userId.value}`, method: 'POST' });
+    const res = await requestWithAuth({ url: `${API_BASE}/conversation/create/${userId.value}`, method: 'POST' });
     if (res.data.code === 200) {
       currentConvId.value = res.data.conversation_id;
       messages.value = [systemPrompt, { ...welcomeMsg }];
@@ -293,7 +337,7 @@ const switchConversation = async (convId) => {
 
 const togglePin = async (convId) => {
   try {
-    await uni.request({ url: `${API_BASE}/conversation/pin/${convId}`, method: 'PUT' });
+    await requestWithAuth({ url: `${API_BASE}/conversation/pin/${convId}`, method: 'PUT' });
     await loadConversations();
   } catch (e) {}
 };
@@ -303,7 +347,7 @@ const deleteConversation = async (convId) => {
     title: '删除会话', content: '确认删除？',
     success: async (res) => {
       if (!res.confirm) return;
-      await uni.request({ url: `${API_BASE}/conversation/${convId}`, method: 'DELETE' });
+      await requestWithAuth({ url: `${API_BASE}/conversation/${convId}`, method: 'DELETE' });
       await loadConversations();
       if (convId === currentConvId.value) {
         conversations.value.length > 0 ? await switchConversation(conversations.value[0].id) : await createConversation();
@@ -315,18 +359,11 @@ const deleteConversation = async (convId) => {
 // History
 const loadHistory = async () => {
   try {
-    const res = await uni.request({ url: `${API_BASE}/history/${userId.value}?conversation_id=${currentConvId.value}` });
+    const res = await requestWithAuth({ url: `${API_BASE}/history/${userId.value}?conversation_id=${currentConvId.value}` });
     if (res.data.code === 200 && res.data.data.length > 0) {
       const data = res.data.data.map(item => {
         if (item.role === 'assistant') item.role = 'ai';
-        if (item.content) {
-          const vm = item.content.match(/\[VIDEO:([\s\S]+?)\]/);
-          if (vm) { item.video = vm[1].trim(); item.content = item.content.replace(/\[VIDEO:[\s\S]+?\]/g, '').trim(); }
-          const im = item.content.match(/\[IMAGE:([\s\S]+?)\]/);
-          if (im) { item.aiImage = im[1].trim(); item.content = item.content.replace(/\[IMAGE:[\s\S]+?\]/g, '').trim(); }
-          item.content = item.content.replace(/@@@[\s\S]*?(@@@|$)/g, '').trim();
-        }
-        return item;
+        return normalizeAIMessage(item);
       });
       messages.value = [systemPrompt, ...data];
       scrollToBottom();
@@ -338,6 +375,28 @@ const loadHistory = async () => {
 
 // Send message
 const sendQuick = (text) => { inputText.value = text; sendMessage(); };
+
+const reportMessage = (msg) => {
+  uni.showActionSheet({
+    itemList: ['色情/裸露', '暴力/违法', '仇恨/骚扰', '事实错误/误导'],
+    success: async ({ tapIndex }) => {
+      const reason = ['色情/裸露', '暴力/违法', '仇恨/骚扰', '事实错误/误导'][tapIndex];
+      try {
+        const res = await requestWithAuth({
+          url: `${API_BASE}/ai/report`,
+          method: 'POST',
+          data: {
+            user_id: userId.value,
+            conversation_id: currentConvId.value,
+            reason,
+            message_content: msg.content || '',
+          },
+        });
+        uni.showToast({ title: res.data.msg || '已提交', icon: 'none' });
+      } catch (e) {}
+    },
+  });
+};
 
 const sendMessage = async () => {
   const text = inputText.value.trim();
@@ -352,11 +411,13 @@ const sendMessage = async () => {
   messages.value.push({ role: 'ai', content: '' });
   isLoading.value = true;
   scrollToBottom();
+  const aiIndex = messages.value.length - 1;
 
   try {
+    // #ifdef H5
     const response = await fetch(`${API_BASE}/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         user_id: userId.value,
         message: text,
@@ -366,9 +427,16 @@ const sendMessage = async () => {
       }),
     });
 
+    if (response.status === 401) {
+      redirectToLogin();
+      return;
+    }
+    if (!response.ok || !response.body) {
+      throw new Error('REQUEST_FAILED');
+    }
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    const aiIndex = messages.value.length - 1;
 
     while (true) {
       const { value, done } = await reader.read();
@@ -377,26 +445,31 @@ const sendMessage = async () => {
       messages.value[aiIndex].content += chunk;
 
       // Parse special tags
-      const content = messages.value[aiIndex].content;
-      const imgMatch = content.match(/\[IMAGE:([\s\S]+?)\]/);
-      if (imgMatch) {
-        messages.value[aiIndex].aiImage = imgMatch[1].trim();
-        messages.value[aiIndex].content = content.replace(/\[IMAGE:[\s\S]+?\]/g, '').trim();
-      }
-      const vidMatch = content.match(/\[VIDEO:([\s\S]+?)\]/);
-      if (vidMatch) {
-        messages.value[aiIndex].video = vidMatch[1].trim();
-        messages.value[aiIndex].content = content.replace(/\[VIDEO:[\s\S]+?\]/g, '').trim();
-      }
+      normalizeAIMessage(messages.value[aiIndex]);
       scrollToBottom();
     }
+    // #endif
 
-    // Clean suggested questions tags
-    const finalContent = messages.value[aiIndex].content;
-    messages.value[aiIndex].content = finalContent.replace(/@@@[\s\S]*?(@@@|$)/g, '').trim();
+    // #ifndef H5
+    const response = await requestWithAuth({
+      url: `${API_BASE}/chat`,
+      method: 'POST',
+      header: { 'Content-Type': 'application/json' },
+      data: {
+        user_id: userId.value,
+        message: text,
+        image_base64: imgBase64,
+        conversation_id: currentConvId.value,
+        model: currentModel.value,
+      },
+    });
+    messages.value[aiIndex].content = typeof response.data === 'string' ? response.data : '服务返回异常';
+    normalizeAIMessage(messages.value[aiIndex]);
+    // #endif
+
+    normalizeAIMessage(messages.value[aiIndex]);
     fetchBalance();
   } catch (e) {
-    const aiIndex = messages.value.length - 1;
     messages.value[aiIndex].content = '网络错误，请检查后端服务是否运行。';
   } finally {
     isLoading.value = false;
@@ -406,11 +479,13 @@ const sendMessage = async () => {
 
 // Lifecycle
 onLoad(() => {
+  if (!ensureLoggedIn()) return;
   const storedId = uni.getStorageSync('user_id');
-  if (!storedId) { uni.redirectTo({ url: '/pages/login/login' }); return; }
+  if (!storedId) { redirectToLogin('请先登录'); return; }
   userId.value = storedId;
   initApp();
 
+  // #ifdef H5
   // Code copy button handler
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.code-copy-btn');
@@ -425,9 +500,11 @@ onLoad(() => {
       }
     }
   });
+  // #endif
 });
 
 onShow(() => {
+  if (!ensureLoggedIn()) return;
   fetchBalance();
   const pending = uni.getStorageSync('pending_prompt');
   if (pending) {
