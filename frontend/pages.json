@@ -2,7 +2,7 @@
   "pages": [
     {
       "path": "pages/index/index",
-      "style": { "navigationBarTitleText": "AI Chat", "navigationStyle": "custom" }
+      "style": { "navigationBarTitleText": "Genie AI Toolbox", "navigationStyle": "custom" }
     },
     {
       "path": "pages/discover/discover",

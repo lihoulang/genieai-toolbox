@@ -35,7 +35,6 @@ const activeTab = ref(0);
 const tabs = [
   { label: '全部', filter: 'all' },
   { label: '创意绘画', filter: 'art' },
-  { label: '视频制作', filter: 'video' },
   { label: '编程开发', filter: 'code' },
   { label: '学习助手', filter: 'study' },
   { label: '生活实用', filter: 'life' },
@@ -46,8 +45,6 @@ const allCards = [
     prompt: '用 Python 写一个快速排序算法，附详细注释' },
   { icon: '🎨', iconClass: 'ic-art', title: 'AI 绘画', desc: '文字生成图片', cost: '-10', cat: 'art',
     prompt: '画一幅日落时分的海边灯塔，油画风格，暖色调' },
-  { icon: '🎬', iconClass: 'ic-video', title: 'AI 视频', desc: '文字生成视频', cost: '-50', cat: 'video',
-    prompt: '帮我生成一段视频：樱花飘落的日本街道，春天的氛围' },
   { icon: '📝', iconClass: 'ic-study', title: '作文批改', desc: '逐段点评', cost: '-1', cat: 'study',
     prompt: '请帮我批改以下作文，逐段点评并给出改进建议' },
   { icon: '🌍', iconClass: 'ic-life', title: '旅行规划', desc: '定制行程', cost: '-1', cat: 'life',
@@ -60,8 +57,6 @@ const allCards = [
     prompt: '搜索今天最重要的 5 条新闻，每条用一句话总结' },
   { icon: '🏠', iconClass: 'ic-art', title: '室内设计', desc: 'AI 效果图', cost: '-10', cat: 'art',
     prompt: '画一张现代简约风格的客厅效果图，大落地窗，自然光照' },
-  { icon: '🎵', iconClass: 'ic-video', title: 'MV 短片', desc: 'AI 音乐视频', cost: '-50', cat: 'video',
-    prompt: '帮我生成一段视频：日落海边，一个人弹着吉他，电影感' },
 ];
 
 const currentCards = computed(() => {
@@ -93,7 +88,6 @@ const usePrompt = (text) => {
 .card-icon { width: 46px; height: 46px; border-radius: 12px; display: flex; justify-content: center; align-items: center; font-size: 22px; margin-right: 14px; flex-shrink: 0; }
 .ic-code { background-color: #f4f0ff; }
 .ic-art { background-color: #fff0f6; }
-.ic-video { background-color: #e6fffb; }
 .ic-study { background-color: #fff7e6; }
 .ic-life { background-color: #f0f5ff; }
 .card-text { display: flex; flex-direction: column; flex: 1; overflow: hidden; }

@@ -70,7 +70,7 @@
 
     <!-- Footer -->
     <view class="footer">
-      <text class="footer-text">uni-ai-starter v1.0</text>
+      <text class="footer-text">Genie AI Toolbox v1.0</text>
       <text class="footer-text">Powered by DeepSeek & Qwen</text>
     </view>
   </view>

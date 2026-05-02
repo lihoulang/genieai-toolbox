@@ -1,7 +1,7 @@
 {
-  "name": "uni-ai-starter",
+  "name": "Genie AI Toolbox",
   "appid": "cn.mastermath.uniai",
-  "description": "Full-stack AI Chat Template - uni-app + FastAPI",
+  "description": "Genie AI Toolbox - AI chat, vision, and creation assistant",
   "versionName": "1.0.0",
   "versionCode": "100",
   "transformPx": false,
@@ -26,7 +26,7 @@
     }
   },
   "h5": {
-    "title": "AI Chat",
+    "title": "Genie AI Toolbox",
     "router": {
       "mode": "hash"
     }

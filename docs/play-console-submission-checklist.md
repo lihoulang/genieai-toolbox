@@ -72,3 +72,8 @@ Updated: 2026-05-02
 - Is the current developer account subject to closed testing before production?
 - Are you intentionally shipping AI video in v1.0?
 - Do you have a fallback plan if the AI provider is unavailable?
+
+## 8. Current Release Decision
+
+- `AI 视频` is hidden in `v1.0`
+- Reviewer guidance, screenshots, feature list, and store description should not present AI video as a launch feature

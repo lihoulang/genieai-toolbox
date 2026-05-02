@@ -40,7 +40,7 @@
         </view>
         <view class="header-center" @click="showModelPicker = !showModelPicker">
           <view class="header-texts">
-            <text class="title">AI Chat</text>
+            <text class="title">Genie AI Toolbox</text>
             <text class="subtitle">{{ currentModelLabel }}</text>
           </view>
         </view>
@@ -107,7 +107,6 @@
           <view class="tools-scroll-inner">
             <view class="tool-chip" @click="sendQuick('帮我总结一下重点')">⚡ 总结</view>
             <view class="tool-chip" @click="chooseImage">🔍 拍题</view>
-            <view class="tool-chip tool-chip-warn" @click="sendQuick('帮我生成一段视频：赛博朋克城市夜景')">🎥 视频</view>
             <view class="tool-chip" @click="sendQuick('画一张日落海边风景画')">🎨 画图</view>
           </view>
         </scroll-view>
@@ -220,7 +219,7 @@ const renderMarkdown = (text) => {
 
 // System & welcome messages
 const systemPrompt = { role: 'system', content: 'You are AI Assistant.' };
-const welcomeMsg = { role: 'ai', content: '你好！我是 AI Assistant。支持文字对话、图片识别、AI 绘画和视频生成。有什么可以帮你的？' };
+const welcomeMsg = { role: 'ai', content: '你好！我是 AI Assistant。支持文字对话、图片识别和 AI 绘画。有什么可以帮你的？' };
 const messages = ref([systemPrompt, { ...welcomeMsg }]);
 
 // Scroll

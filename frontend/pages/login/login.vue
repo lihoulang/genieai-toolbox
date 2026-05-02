@@ -1,8 +1,8 @@
 <template>
   <view class="auth-container">
     <view class="auth-header">
-      <view class="logo-circle">AI</view>
-      <text class="app-name">AI Chat</text>
+      <view class="logo-circle">G</view>
+      <text class="app-name">Genie AI Toolbox</text>
       <text class="app-desc">Multi-modal AI Assistant</text>
     </view>
 
