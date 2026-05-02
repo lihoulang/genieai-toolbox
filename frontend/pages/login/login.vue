@@ -1,30 +1,52 @@
 <template>
-  <view class="auth-container">
-    <view class="auth-header">
-      <view class="logo-circle">G</view>
-      <text class="app-name">Genie AI Toolbox</text>
-      <text class="app-desc">Multi-modal AI Assistant</text>
+  <view class="auth-page">
+    <view class="topbar">
+      <view class="topbar-placeholder"></view>
+      <view class="header-copy">
+        <text class="topbar-title">登录</text>
+        <text class="topbar-subtitle">Genie AI Toolbox</text>
+      </view>
+      <view class="topbar-placeholder"></view>
     </view>
 
-    <view class="auth-card">
-      <text class="card-title">账号登录</text>
-      <view class="form-wrapper">
-        <view class="input-group">
-          <text class="icon">👤</text>
-          <input class="styled-input" type="text" v-model="username" placeholder="请输入账号" />
+    <scroll-view class="auth-scroll" scroll-y>
+      <view class="brand-block">
+        <view class="brand-mark">
+          <view class="brand-orbit brand-orbit-a"></view>
+          <view class="brand-orbit brand-orbit-b"></view>
+          <view class="brand-core">
+            <text class="brand-letter">G</text>
+          </view>
         </view>
-        <view class="input-group">
-          <text class="icon">🔒</text>
-          <input class="styled-input" type="password" v-model="password" placeholder="请输入密码" @confirm="handleLogin" />
+        <text class="brand-title">Genie AI Toolbox</text>
+      </view>
+
+      <view class="form-card">
+        <view class="card-head">
+          <view>
+          </view>
         </view>
-        <view class="submit-btn" @click="handleLogin" :class="{ 'loading': isLoading }">
-          {{ isLoading ? '请稍候...' : '立即登录' }}
+
+        <view class="form-wrapper">
+          <view class="input-row">
+            <text class="field-tag">账号</text>
+            <input class="styled-input" type="text" v-model="username" placeholder="请输入账号" />
+          </view>
+          <view class="input-row">
+            <text class="field-tag">密码</text>
+            <input class="styled-input" type="password" v-model="password" placeholder="请输入密码" @confirm="handleLogin" />
+          </view>
+          <view class="submit-btn" @click="handleLogin" :class="{ 'loading': isLoading }">
+            {{ isLoading ? '请稍候...' : '立即登录' }}
+          </view>
+        </view>
+
+        <view class="register-row">
+          <text class="register-copy">还没有账号？</text>
+          <text class="register-link" @click="goRegister">创建新账号</text>
         </view>
       </view>
-      <view class="register-link">
-        还没有账号？<text class="link" @click="goRegister">立即注册</text>
-      </view>
-    </view>
+    </scroll-view>
   </view>
 </template>
 
@@ -71,21 +93,295 @@ const goRegister = () => { uni.navigateTo({ url: '/pages/register/register' }); 
 </script>
 
 <style scoped>
-.auth-container { min-height: 100vh; background-color: var(--bg-page); display: flex; flex-direction: column; align-items: center; }
-.auth-header { margin-top: 12vh; display: flex; flex-direction: column; align-items: center; margin-bottom: 40px; }
-.logo-circle { width: 72px; height: 72px; background: linear-gradient(135deg, var(--primary-color, #3370ff), #5c8dff); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; color: white; font-weight: bold; box-shadow: 0 8px 24px rgba(51, 112, 255, 0.3); margin-bottom: 16px; }
-.app-name { font-size: 24px; font-weight: 700; color: var(--text-primary); }
-.app-desc { font-size: 13px; color: var(--text-secondary); margin-top: 6px; }
-.auth-card { width: 85%; max-width: 400px; background-color: var(--bg-card); border-radius: 24px; padding: 30px 24px; box-shadow: var(--shadow-card); }
-.card-title { font-size: 20px; font-weight: 600; color: var(--text-primary); display: block; margin-bottom: 24px; }
-.form-wrapper { display: flex; flex-direction: column; gap: 16px; }
-.input-group { display: flex; align-items: center; background-color: var(--bg-input); border-radius: 16px; padding: 4px 16px; border: 1px solid transparent; transition: border-color 0.2s; }
-.input-group:focus-within { border-color: var(--primary-color, #3370ff); background-color: var(--bg-card); }
-.icon { font-size: 18px; margin-right: 12px; color: var(--text-tertiary); }
-.styled-input { flex: 1; height: 48px; font-size: 15px; color: var(--text-primary); }
-.submit-btn { margin-top: 10px; height: 50px; border-radius: 25px; background: linear-gradient(90deg, #1f65d6, var(--primary-color, #3370ff)); color: white; font-size: 16px; font-weight: 600; display: flex; justify-content: center; align-items: center; box-shadow: 0 6px 16px rgba(51, 112, 255, 0.25); transition: all 0.2s; }
-.submit-btn:active { transform: scale(0.97); }
-.submit-btn.loading { opacity: 0.7; pointer-events: none; }
-.register-link { margin-top: 20px; text-align: center; font-size: 14px; color: var(--text-secondary); }
-.link { color: var(--primary-color, #3370ff); font-weight: 500; }
+.auth-page {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  height: 60px;
+  padding: 8px 14px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border-bottom: 1px solid #eceff4;
+  flex-shrink: 0;
+}
+
+.topbar-placeholder {
+  width: 36px;
+  height: 36px;
+}
+
+.header-copy {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.topbar-title {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+  color: #202634;
+}
+
+.topbar-subtitle {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: #9aa3b3;
+}
+
+.auth-scroll {
+  flex: 1;
+  min-height: 0;
+  padding: 22px 14px 24px;
+  background: #fff;
+}
+
+.brand-block {
+  padding: 18px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.brand-mark {
+  position: relative;
+  width: 118px;
+  height: 118px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-orbit {
+  position: absolute;
+  inset: 0;
+  border-radius: 34px;
+  border: 1px solid rgba(102, 112, 232, 0.16);
+  background: linear-gradient(135deg, rgba(102, 112, 232, 0.12), rgba(93, 98, 201, 0.04));
+}
+
+.brand-orbit-a {
+  transform: rotate(12deg);
+}
+
+.brand-orbit-b {
+  inset: 10px;
+  border-radius: 28px;
+  transform: rotate(-10deg);
+  border-color: rgba(102, 112, 232, 0.22);
+}
+
+.brand-core {
+  position: relative;
+  z-index: 1;
+  width: 72px;
+  height: 72px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
+  box-shadow: 0 16px 36px rgba(102, 112, 232, 0.24);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-letter {
+  color: #fff;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.brand-title {
+  display: block;
+  margin-top: 18px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #232939;
+}
+
+.brand-subtitle {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #97a0af;
+  text-align: center;
+}
+
+.form-card {
+  margin-top: 14px;
+  background: #fff;
+  border: 1px solid #dfe4ee;
+  border-radius: 16px;
+}
+
+.form-card {
+  padding: 18px 16px 16px;
+}
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card-title {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: #232939;
+}
+
+.card-subtitle {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  color: #98a1b0;
+}
+
+.card-badge {
+  flex-shrink: 0;
+  min-width: 74px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #d7dcfb;
+  color: #6670e8;
+  font-size: 12px;
+  line-height: 30px;
+  text-align: center;
+}
+
+.form-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.input-row {
+  min-height: 54px;
+  border: 1px solid #dfe4ee;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: none !important;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 12px;
+}
+
+.input-row:focus-within {
+  border-color: #dfe4ee;
+  background: #fff;
+}
+
+.field-tag {
+  flex-shrink: 0;
+  width: 38px;
+  color: #8d97a8;
+  font-size: 13px;
+}
+
+.styled-input {
+  flex: 1;
+  height: 52px;
+  font-size: 15px;
+  color: #232939;
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+:deep(.styled-input .uni-input-wrapper) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+:deep(.styled-input .uni-input-input),
+:deep(.styled-input .uni-input-input:focus),
+:deep(.styled-input .uni-input-input:active),
+:deep(.styled-input .uni-input-input:-webkit-autofill),
+:deep(.styled-input .uni-input-input:-webkit-autofill:hover),
+:deep(.styled-input .uni-input-input:-webkit-autofill:focus) {
+  background: #fff !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
+  -webkit-text-fill-color: #232939 !important;
+  caret-color: #232939;
+  transition: background-color 99999s ease-in-out 0s;
+}
+
+:deep(.styled-input .uni-input-placeholder) {
+  color: #a2aabd !important;
+}
+
+:deep(input),
+:deep(input:focus),
+:deep(input:active),
+:deep(input:-webkit-autofill),
+:deep(input:-webkit-autofill:hover),
+:deep(input:-webkit-autofill:focus) {
+  background: #fff !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
+  -webkit-text-fill-color: #232939 !important;
+  outline: none !important;
+  transition: background-color 99999s ease-in-out 0s;
+}
+
+.submit-btn {
+  margin-top: 4px;
+  height: 50px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.submit-btn:active {
+  transform: scale(0.98);
+}
+
+.submit-btn.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.register-row {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.register-copy {
+  color: #9aa3b3;
+}
+
+.register-link {
+  color: #6670e8;
+  font-weight: 600;
+}
 </style>
