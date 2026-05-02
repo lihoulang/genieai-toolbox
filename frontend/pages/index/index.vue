@@ -138,7 +138,7 @@ const currentModel = ref('doubao');
 const modelOptions = [
   // Hold for a later release after review:
   // { id: 'deepseek', icon: '🧠', name: 'DeepSeek', desc: '强推理、写代码' },
-  // { id: 'qwen', icon: '🌟', name: 'Qwen-Max', desc: '通义千问，均衡全能' },
+  { id: 'qwen', icon: '🌟', name: 'Qwen-Max', desc: '通义千问，均衡全能' },
   { id: 'doubao', icon: '🚀', name: 'Doubao', desc: '火山引擎，响应更快' },
   { id: 'gemini', icon: '✦', name: 'Gemini', desc: 'Google 模型，综合能力强' },
 ];
