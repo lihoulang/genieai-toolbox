@@ -15,7 +15,7 @@
           <view class="brand-orbit brand-orbit-a"></view>
           <view class="brand-orbit brand-orbit-b"></view>
           <view class="brand-core">
-            <text class="brand-letter">G</text>
+            <text class="brand-word">Genie</text>
           </view>
         </view>
         <text class="brand-title">Genie AI Toolbox</text>
@@ -153,7 +153,7 @@ const goRegister = () => { uni.navigateTo({ url: '/pages/register/register' }); 
 
 .brand-mark {
   position: relative;
-  width: 118px;
+  width: 124px;
   height: 118px;
   display: flex;
   align-items: center;
@@ -182,8 +182,8 @@ const goRegister = () => { uni.navigateTo({ url: '/pages/register/register' }); 
 .brand-core {
   position: relative;
   z-index: 1;
-  width: 72px;
-  height: 72px;
+  width: 78px;
+  height: 78px;
   border-radius: 24px;
   background: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
   box-shadow: 0 16px 36px rgba(102, 112, 232, 0.24);
@@ -192,11 +192,11 @@ const goRegister = () => { uni.navigateTo({ url: '/pages/register/register' }); 
   justify-content: center;
 }
 
-.brand-letter {
+.brand-word {
   color: #fff;
-  font-size: 30px;
+  font-size: 16px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: 0.2px;
 }
 
 .brand-title {
