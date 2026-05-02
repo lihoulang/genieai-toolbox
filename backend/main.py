@@ -760,7 +760,7 @@ AGENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "generate_video",
-            "description": "Generate a video clip based on prompt description.",
+            "description": "Generate a silent video clip based on prompt description.",
             "parameters": {
                 "type": "object",
                 "properties": {"prompt": {"type": "string", "description": "Detailed video description"}},
@@ -994,8 +994,8 @@ async def chat(req: ChatRequest, request: Request):
                                         video_url = status.output.video_url
                                         tag = f"[VIDEO:{video_url}]"
                                         full_response += tag
-                                        yield f"{tag}\n\n"
-                                        observation = f"视频已生成：{video_url}"
+                                        yield f"{tag}\n\n当前版本生成的是无声视频，如需配音或背景音乐，需要后续单独处理。\n\n"
+                                        observation = f"视频已生成（当前为无声视频）：{video_url}"
                                         break
                                     if task_status in ("FAILED", "UNKNOWN"):
                                         refund_balance(authed_user_id, 50, "AI视频失败返还")

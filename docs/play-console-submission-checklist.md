@@ -77,5 +77,6 @@ Updated: 2026-05-02
 
 ## 8. Current Release Decision
 
-- `AI 视频` is hidden in `v1.0`
-- Reviewer guidance, screenshots, feature list, and store description should not present AI video as a launch feature
+- `AI 视频` is included in `v1.0`
+- Reviewer guidance, screenshots, feature list, and store description should explicitly present AI video as a launch feature
+- Current generated videos are silent; reviewer notes and support materials should state that audio is not included

@@ -31,6 +31,7 @@ Purpose:
 ### Photos and videos
 
 - User-uploaded images for image understanding
+- AI-generated video outputs created on user request
 
 Purpose:
 
@@ -64,7 +65,7 @@ Review before release:
 - Is data encrypted at rest in production?
 - Is data shared with any analytics SDKs?
 - Are crash reporting tools enabled?
-- Will you ship AI video in v1.0?
+- AI video is shipped in v1.0; current generated videos are silent and do not include audio tracks
 
 ## Current In-App Controls
 
