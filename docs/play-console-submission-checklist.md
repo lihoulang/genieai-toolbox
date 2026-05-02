@@ -5,7 +5,9 @@ Updated: 2026-05-02
 ## 1. Release Package
 
 - Confirm final Android package name / `appid`
-  Chosen for this project: `cn.mastermath.uniai`
+  Chosen for this project:
+  - uni-app `appid`: `__UNI__3617C61`
+  - Android package name: `com.genieai.toolbox`
 - Prepare release signing key and backup
 - Build release `.aab`
 - Verify version name and version code
