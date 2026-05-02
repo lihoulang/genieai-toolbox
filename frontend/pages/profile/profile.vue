@@ -1,83 +1,109 @@
 <template>
-  <view class="profile-container">
-    <!-- Header -->
-    <view class="header-section">
-      <view class="user-info">
-        <view class="avatar">{{ displayName.charAt(0) }}</view>
-        <view class="info-text">
-          <text class="username">{{ displayName }}</text>
-          <text class="tag">AI Explorer</text>
-        </view>
+  <view class="profile-page">
+    <view class="topbar">
+      <view class="menu-btn" @click="goChat">
+        <view class="menu-line"></view>
+        <view class="menu-line"></view>
+        <view class="menu-line"></view>
       </view>
+      <text class="topbar-title">我的</text>
+      <view class="topbar-placeholder"></view>
     </view>
 
-    <!-- Balance Card -->
-    <view class="assets-card">
-      <view class="asset-item">
-        <text class="asset-num" :class="{'low-balance': balance < 20}">{{ balance }}</text>
-        <text class="asset-name">算力余额</text>
-      </view>
-      <view class="divider"></view>
-      <view class="asset-item" @click="handleSign">
-        <view class="sign-btn" :class="{'disabled-btn': hasSignedToday}">
-          {{ hasSignedToday ? '今日已签' : '签到领取' }}
+    <scroll-view class="profile-scroll" scroll-y>
+      <view class="profile-hero">
+        <view class="hero-avatar">{{ displayName.charAt(0) }}</view>
+        <view class="hero-copy">
+          <text class="hero-name">{{ displayName }}</text>
+          <text class="hero-tag">AI Explorer</text>
         </view>
-        <text class="asset-name">每日福利</text>
       </view>
-    </view>
 
-    <!-- Balance History -->
-    <view class="section-card">
-      <view class="section-header" @click="showBalanceLogs = !showBalanceLogs">
-        <text class="section-title">⚡ 算力明细</text>
-        <text class="section-arrow">{{ showBalanceLogs ? '▲' : '▼' }}</text>
+      <view class="balance-card">
+        <view class="balance-column">
+          <text class="balance-value">{{ balance }}</text>
+          <text class="balance-label">算力余额</text>
+        </view>
+        <view class="balance-divider"></view>
+        <view class="balance-column" @click="handleSign">
+          <view class="sign-pill" :class="{ 'sign-pill-disabled': hasSignedToday }">
+            {{ hasSignedToday ? '今日已签' : '签到领取' }}
+          </view>
+          <text class="balance-label">每日福利</text>
+        </view>
       </view>
-      <view v-if="showBalanceLogs">
+
+      <view class="section-card compact-card" @click="showBalanceLogs = !showBalanceLogs">
+        <view class="single-row">
+          <view class="row-left">
+            <text class="row-icon accent">⌁</text>
+            <text class="row-label">算力明细</text>
+          </view>
+          <text class="row-arrow">{{ showBalanceLogs ? '⌃' : '›' }}</text>
+        </view>
+      </view>
+
+      <view class="section-card logs-card" v-if="showBalanceLogs">
         <view v-if="balanceLogs.length === 0" class="empty-text">暂无记录</view>
-        <view class="log-item" v-for="(log, i) in balanceLogs" :key="i">
+        <view class="log-item" v-for="(log, index) in balanceLogs" :key="index">
           <text class="log-reason">{{ log.reason }}</text>
           <text class="log-amount" :class="log.amount > 0 ? 'amount-plus' : 'amount-minus'">
             {{ log.amount > 0 ? '+' : '' }}{{ log.amount }}
           </text>
-          <text class="log-time">{{ log.created_at }}</text>
         </view>
       </view>
-    </view>
 
-    <!-- Settings -->
-    <view class="section-card">
-      <text class="section-title">设置</text>
-      <view class="setting-item" @click="goPrivacyPolicy">
-        <text>📄 隐私政策</text>
+      <view class="section-card settings-card">
+        <text class="settings-title">设置</text>
+        <view class="setting-row" @click="goPrivacyPolicy">
+          <view class="row-left">
+            <text class="row-icon">⌂</text>
+            <text class="row-label">隐私政策</text>
+          </view>
+          <text class="row-arrow">›</text>
+        </view>
+        <view class="setting-row" @click="goAccountDeletion">
+          <view class="row-left">
+            <text class="row-icon">▤</text>
+            <text class="row-label">注销说明</text>
+          </view>
+          <text class="row-arrow">›</text>
+        </view>
+        <view class="setting-row" @click="goSupportLink">
+          <view class="row-left">
+            <text class="row-icon">?</text>
+            <text class="row-label">支持链接</text>
+          </view>
+          <text class="row-arrow">›</text>
+        </view>
+        <view class="setting-row" @click="toggleDarkMode">
+          <view class="row-left">
+            <text class="row-icon">◌</text>
+            <text class="row-label">深色模式</text>
+          </view>
+          <text class="row-state">{{ isDark ? '开' : '关' }}</text>
+        </view>
       </view>
-      <view class="setting-item" @click="goAccountDeletion">
-        <text>🧾 注销说明</text>
-      </view>
-      <view class="setting-item" @click="goSupportLink">
-        <text>🛟 支持链接</text>
-      </view>
-      <view class="setting-item" @click="toggleDarkMode">
-        <text>🌙 深色模式</text>
-        <text class="setting-val">{{ isDark ? '开' : '关' }}</text>
-      </view>
-      <view class="setting-item setting-danger" @click="handleDeleteAccount">
-        <text>🗑️ 删除账号</text>
-      </view>
-      <view class="setting-item" @click="handleLogout">
-        <text>🚪 退出登录</text>
-      </view>
-    </view>
 
-    <!-- Footer -->
-    <view class="footer">
-      <text class="footer-text">Genie AI Toolbox v1.0</text>
-      <text class="footer-text">Powered by DeepSeek & Qwen</text>
-    </view>
+      <view class="action-card danger-card" @click="handleDeleteAccount">
+        <view class="row-left">
+          <text class="row-icon danger-text">⊟</text>
+          <text class="row-label danger-text">删除账号</text>
+        </view>
+      </view>
+
+      <view class="action-card" @click="handleLogout">
+        <view class="row-left">
+          <text class="row-icon">⇥</text>
+          <text class="row-label">退出登录</text>
+        </view>
+      </view>
+    </scroll-view>
   </view>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { ACCOUNT_DELETION_URL, API_BASE, PRIVACY_POLICY_URL, SUPPORT_URL } from '../../config.js';
 import { clearAuthStorage, ensureLoggedIn, redirectToLogin, requestWithAuth } from '../../utils/auth.js';
@@ -107,9 +133,17 @@ const fetchUserInfo = async () => {
   } catch (e) {}
 };
 
+const fetchBalanceLogs = async () => {
+  try {
+    const res = await requestWithAuth({ url: `${API_BASE}/user/balance_logs/${userId.value}` });
+    if (res.data.code === 200) balanceLogs.value = res.data.data;
+  } catch (e) {}
+};
+
 const handleSign = async () => {
   if (hasSignedToday.value) {
-    uni.showToast({ title: '今天已签到', icon: 'none' }); return;
+    uni.showToast({ title: '今天已签到', icon: 'none' });
+    return;
   }
   try {
     const res = await requestWithAuth({ url: `${API_BASE}/user/sign/${userId.value}`, method: 'POST' });
@@ -123,13 +157,6 @@ const handleSign = async () => {
   } catch (e) {
     uni.showToast({ title: '签到失败', icon: 'none' });
   }
-};
-
-const fetchBalanceLogs = async () => {
-  try {
-    const res = await requestWithAuth({ url: `${API_BASE}/user/balance_logs/${userId.value}` });
-    if (res.data.code === 200) balanceLogs.value = res.data.data;
-  } catch (e) {}
 };
 
 const toggleDarkMode = () => {
@@ -151,23 +178,15 @@ const toggleDarkMode = () => {
   }
 };
 
-const goPrivacyPolicy = () => {
-  openExternalUrl(PRIVACY_POLICY_URL, '/pages/legal/privacy');
-};
-
-const goAccountDeletion = () => {
-  openExternalUrl(ACCOUNT_DELETION_URL, '/pages/legal/account-delete');
-};
-
-const goSupportLink = () => {
-  openExternalUrl(SUPPORT_URL, '/pages/legal/support');
-};
+const goPrivacyPolicy = () => openExternalUrl(PRIVACY_POLICY_URL, '/pages/legal/privacy');
+const goAccountDeletion = () => openExternalUrl(ACCOUNT_DELETION_URL, '/pages/legal/account-delete');
+const goSupportLink = () => openExternalUrl(SUPPORT_URL, '/pages/legal/support');
 
 const handleDeleteAccount = () => {
   uni.showModal({
     title: '删除账号',
     content: '删除后将清空聊天记录、余额记录和登录态，且无法恢复。确认继续？',
-    confirmColor: '#d93025',
+    confirmColor: '#fa6a67',
     success: async (res) => {
       if (!res.confirm) return;
       try {
@@ -178,20 +197,19 @@ const handleDeleteAccount = () => {
         if (resp.data.code === 200) {
           clearAuthStorage();
           uni.showToast({ title: '账号已删除', icon: 'none' });
-          setTimeout(() => {
-            uni.reLaunch({ url: '/pages/login/login' });
-          }, 500);
+          setTimeout(() => uni.reLaunch({ url: '/pages/login/login' }), 500);
         } else {
           uni.showToast({ title: resp.data.msg || '删除失败', icon: 'none' });
         }
       } catch (e) {}
-    }
+    },
   });
 };
 
 const handleLogout = () => {
   uni.showModal({
-    title: '退出登录', content: '确认退出？',
+    title: '退出登录',
+    content: '确认退出？',
     success: async (res) => {
       if (!res.confirm) return;
       try {
@@ -199,53 +217,293 @@ const handleLogout = () => {
       } catch (e) {}
       clearAuthStorage();
       uni.reLaunch({ url: '/pages/login/login' });
-    }
+    },
   });
+};
+
+const goChat = () => {
+  uni.switchTab({ url: '/pages/index/index' });
 };
 
 onShow(() => {
   if (!ensureLoggedIn()) return;
   userId.value = uni.getStorageSync('user_id');
-  if (!userId.value) { redirectToLogin('请先登录'); return; }
+  if (!userId.value) {
+    redirectToLogin('请先登录');
+    return;
+  }
   fetchUserInfo();
   fetchBalanceLogs();
 });
 </script>
 
 <style scoped>
-.profile-container { min-height: 100vh; background-color: var(--bg-page); padding-bottom: 80px; }
-.header-section { background: linear-gradient(135deg, var(--primary-color, #3370ff), #5c8dff); padding: 40px 20px 30px; }
-.user-info { display: flex; align-items: center; gap: 16px; }
-.avatar { width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,0.2); color: white; font-size: 24px; font-weight: bold; display: flex; justify-content: center; align-items: center; }
-.info-text { display: flex; flex-direction: column; }
-.username { font-size: 20px; font-weight: 700; color: white; }
-.tag { font-size: 12px; color: rgba(255,255,255,0.8); margin-top: 4px; }
+.profile-page {
+  min-height: 100vh;
+  background: var(--bg-page);
+}
 
-.assets-card { margin: -20px 16px 16px; background-color: var(--bg-card); border-radius: 20px; padding: 20px; display: flex; align-items: center; box-shadow: var(--shadow-card); position: relative; z-index: 2; }
-.asset-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.asset-num { font-size: 28px; font-weight: 700; color: var(--text-primary); }
-.low-balance { color: #e74c3c; }
-.asset-name { font-size: 12px; color: var(--text-secondary); }
-.divider { width: 1px; height: 40px; background-color: var(--border-color); }
-.sign-btn { padding: 8px 20px; border-radius: 20px; background: linear-gradient(90deg, #1f65d6, var(--primary-color, #3370ff)); color: white; font-size: 14px; font-weight: 600; }
-.disabled-btn { background: var(--bg-input); color: var(--text-tertiary); }
+.topbar {
+  height: 60px;
+  padding: 8px 14px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border-bottom: 1px solid var(--border-color);
+}
 
-.section-card { margin: 16px; background-color: var(--bg-card); border-radius: 16px; padding: 16px; box-shadow: var(--shadow-card); }
-.section-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-.section-title { font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; }
-.section-arrow { color: var(--text-tertiary); }
-.empty-text { text-align: center; color: var(--text-tertiary); font-size: 13px; padding: 16px; }
-.log-item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-color); }
-.log-reason { flex: 1; font-size: 14px; color: var(--text-primary); }
-.log-amount { font-size: 14px; font-weight: 600; margin: 0 12px; }
-.amount-plus { color: #27c93f; }
-.amount-minus { color: #e74c3c; }
-.log-time { font-size: 11px; color: var(--text-tertiary); }
+.menu-btn,
+.topbar-placeholder {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-.setting-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border-color); font-size: 15px; color: var(--text-primary); cursor: pointer; }
-.setting-danger { color: #d93025; }
-.setting-val { color: var(--text-secondary); font-size: 14px; }
+.menu-btn {
+  flex-direction: column;
+  gap: 4px;
+}
 
-.footer { text-align: center; padding: 24px; }
-.footer-text { display: block; font-size: 12px; color: var(--text-tertiary); margin: 2px 0; }
+.menu-line {
+  width: 15px;
+  height: 2px;
+  border-radius: 2px;
+  background: #61697b;
+}
+
+.topbar-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2430;
+}
+
+.profile-scroll {
+  height: calc(100vh - 110px);
+  padding-bottom: 20px;
+}
+
+.profile-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 18px 60px;
+  background: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
+}
+
+.hero-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-copy {
+  min-width: 0;
+}
+
+.hero-name {
+  display: block;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.hero-tag {
+  display: block;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+}
+
+.balance-card {
+  margin: -28px 18px 18px;
+  background: #fff;
+  border-radius: 18px;
+  border: 1px solid #dfe4ee;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  padding: 18px 12px;
+}
+
+.balance-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.balance-value {
+  font-size: 20px;
+  line-height: 1;
+  color: #222939;
+  font-weight: 700;
+}
+
+.balance-label {
+  font-size: 13px;
+  color: #9aa3b3;
+}
+
+.balance-divider {
+  width: 1px;
+  height: 34px;
+  background: #eceff4;
+}
+
+.sign-pill {
+  min-width: 96px;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid #d8dde7;
+  background: #fff;
+  color: #5f6779;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sign-pill-disabled {
+  color: #5f6779;
+}
+
+.section-card,
+.action-card {
+  margin: 14px 18px 0;
+  background: #fff;
+  border: 1px solid #dfe4ee;
+  border-radius: 16px;
+  box-shadow: none;
+}
+
+.compact-card {
+  padding: 0 16px;
+}
+
+.logs-card {
+  padding: 8px 16px;
+}
+
+.settings-card {
+  overflow: hidden;
+}
+
+.settings-title {
+  display: block;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #232939;
+  border-bottom: 1px solid #eceff4;
+}
+
+.single-row,
+.setting-row,
+.action-card {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.setting-row {
+  padding: 0 16px;
+  border-bottom: 1px solid #eceff4;
+}
+
+.setting-row:last-child {
+  border-bottom: none;
+}
+
+.action-card {
+  padding: 0 16px;
+}
+
+.row-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.row-icon {
+  width: 20px;
+  text-align: center;
+  color: #9aa3b3;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.accent {
+  color: #6670e8;
+}
+
+.row-label {
+  font-size: 15px;
+  color: #232939;
+}
+
+.row-arrow,
+.row-state {
+  font-size: 16px;
+  color: #a3acbb;
+}
+
+.danger-card {
+  margin-top: 16px;
+}
+
+.danger-text {
+  color: #fa6a67;
+}
+
+.log-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #eceff4;
+}
+
+.log-item:last-child {
+  border-bottom: none;
+}
+
+.log-reason {
+  flex: 1;
+  font-size: 14px;
+  color: #232939;
+  padding-right: 14px;
+}
+
+.log-amount {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.amount-plus {
+  color: #27c93f;
+}
+
+.amount-minus {
+  color: #fa6a67;
+}
+
+.empty-text {
+  text-align: center;
+  color: #9aa3b3;
+  font-size: 13px;
+  padding: 12px 0;
+}
 </style>

@@ -13,24 +13,24 @@ export default {
 
 <style>
 :root {
-  --bg-page: #f0f2f5;
-  --bg-chat: #f5f7fa;
+  --bg-page: #f7f8fb;
+  --bg-chat: #ffffff;
   --bg-card: #ffffff;
-  --bg-input: #f4f5f7;
+  --bg-input: #f6f8fb;
   --bg-bubble-ai: #ffffff;
-  --bg-bubble-user: linear-gradient(135deg, #1f65d6, #3370ff);
+  --bg-bubble-user: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
   --bg-sidebar: #ffffff;
-  --bg-header: rgba(255,255,255,0.95);
-  --text-primary: #1a1d24;
-  --text-secondary: #6b7280;
-  --text-tertiary: #9ca3af;
+  --bg-header: rgba(255,255,255,0.98);
+  --text-primary: #232939;
+  --text-secondary: #687385;
+  --text-tertiary: #9aa3b3;
   --text-inverse: #ffffff;
-  --border-color: #eef0f3;
-  --border-light: #e5e7eb;
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
-  --shadow-msg: 0 1px 4px rgba(0,0,0,0.06);
+  --border-color: #e6e9ef;
+  --border-light: #eef1f5;
+  --shadow-card: 0 8px 20px rgba(32,43,67,0.05);
+  --shadow-msg: 0 6px 16px rgba(32,43,67,0.04);
   --code-bg: #1e1e1e;
-  --primary-color: #3370ff;
+  --primary-color: #6670e8;
 }
 
 .dark {
@@ -53,7 +53,8 @@ export default {
   --code-bg: #0b0f14;
 }
 
-page { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; -webkit-font-smoothing: antialiased; }
+html, body, #app { height: 100%; overflow: hidden; }
+page { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.15); border-radius: 4px; }
