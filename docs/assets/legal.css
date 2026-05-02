@@ -1,13 +1,13 @@
 :root {
-  --bg: #f5f7fb;
+  --bg: #f6f7f9;
   --surface: #ffffff;
-  --surface-muted: #eef3ff;
-  --text: #172033;
-  --text-muted: #5d6985;
+  --surface-muted: #f6f8fb;
+  --text: #1d2433;
+  --text-muted: #586273;
   --primary: #2457ff;
   --primary-dark: #173bb0;
-  --border: #dce4f3;
-  --shadow: 0 16px 40px rgba(21, 34, 66, 0.08);
+  --border: #dde3ea;
+  --shadow: 0 8px 24px rgba(24, 34, 56, 0.06);
 }
 
 * {
@@ -18,7 +18,7 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: radial-gradient(circle at top, #f9fbff 0%, var(--bg) 60%);
+  background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
@@ -43,10 +43,11 @@ a:hover {
 }
 
 .hero {
-  background: linear-gradient(135deg, #173bb0, #2457ff 52%, #5f8dff 100%);
-  color: #ffffff;
-  border-radius: 28px;
-  padding: 32px;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 20px;
+  padding: 28px;
+  border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
 
@@ -54,16 +55,17 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
+  padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--surface-muted);
   font-size: 13px;
-  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
 }
 
 .hero h1 {
   margin: 18px 0 12px;
-  font-size: 34px;
+  font-size: 32px;
   line-height: 1.15;
 }
 
@@ -71,7 +73,7 @@ a:hover {
   margin: 0;
   max-width: 640px;
   line-height: 1.7;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-muted);
 }
 
 .hero-links {
@@ -86,22 +88,23 @@ a:hover {
   align-items: center;
   justify-content: center;
   min-width: 148px;
-  padding: 12px 18px;
-  border-radius: 14px;
-  background: #ffffff;
-  color: var(--primary-dark);
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--surface-muted);
+  color: var(--text);
+  border: 1px solid var(--border);
   font-weight: 600;
 }
 
 .hero-link.secondary {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .content {
   background: var(--surface);
-  border-radius: 24px;
+  border-radius: 20px;
   padding: 28px;
   margin-top: 20px;
   border: 1px solid var(--border);
@@ -117,7 +120,7 @@ a:hover {
 
 .content h2 {
   margin: 28px 0 10px;
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .content p {
@@ -139,8 +142,8 @@ a:hover {
 
 .notice {
   background: var(--surface-muted);
-  border: 1px solid #d8e3ff;
-  border-radius: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
   padding: 18px;
   margin-top: 20px;
 }
@@ -155,7 +158,7 @@ a:hover {
 .nav-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 16px;
   padding: 20px;
   box-shadow: var(--shadow);
 }
@@ -182,23 +185,45 @@ a:hover {
   font-size: 13px;
 }
 
+.policy-hero {
+  padding-bottom: 24px;
+}
+
+.policy-hero .hero-links {
+  margin-top: 18px;
+}
+
+.policy-content {
+  margin-top: 16px;
+}
+
+.policy-content h2 {
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.policy-content h2:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
 @media (max-width: 760px) {
   .page {
     padding: 18px 14px 48px;
   }
 
   .hero {
-    padding: 24px 20px;
-    border-radius: 22px;
+    padding: 22px 18px;
+    border-radius: 18px;
   }
 
   .hero h1 {
-    font-size: 28px;
+    font-size: 26px;
   }
 
   .content {
     padding: 22px 18px;
-    border-radius: 20px;
+    border-radius: 18px;
   }
 
   .nav-card-grid {
