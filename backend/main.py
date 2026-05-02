@@ -46,6 +46,7 @@ QWEN_TEXT_MODEL = os.environ.get("QWEN_TEXT_MODEL", "qwen-max")
 DOUBAO_API_KEY = os.environ.get("DOUBAO_API_KEY", "")
 DOUBAO_API_URL = os.environ.get("DOUBAO_API_URL", "https://ark.cn-beijing.volces.com/api/v3/chat/completions")
 DOUBAO_MODEL_NAME = os.environ.get("DOUBAO_MODEL_NAME", "doubao-seed-1-6-lite-250615")
+DOUBAO_MODEL_ID_MAP_RAW = os.environ.get("DOUBAO_MODEL_ID_MAP", "")
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_API_URL = os.environ.get("GEMINI_API_URL", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
@@ -56,6 +57,12 @@ RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", "60"))
 RATE_LIMIT_MAX = int(os.environ.get("RATE_LIMIT_MAX", "30"))
 SESSION_TTL_DAYS = int(os.environ.get("SESSION_TTL_DAYS", "30"))
 ALLOWED_ORIGINS_RAW = os.environ.get("ALLOWED_ORIGINS", "*")
+
+DEFAULT_DOUBAO_MODEL_ID_MAP = {
+    "doubao-seed-1-8-251228": "ep-20260113140843-nbf4d",
+    "doubao-seed-1-6-lite-251015": "ep-20260128151607-9qnld",
+    "doubao-1-5-lite-32k-250115": "ep-20260128151956-wllft",
+}
 
 
 def now_str() -> str:
@@ -74,6 +81,21 @@ def parse_origins(raw: str) -> list[str]:
     if not raw or raw.strip() == "*":
         return ["*"]
     return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def parse_model_id_map(raw: str, fallback: dict[str, str]) -> dict[str, str]:
+    if not raw.strip():
+        return dict(fallback)
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return {str(key): str(value) for key, value in parsed.items()}
+    except json.JSONDecodeError:
+        pass
+    return dict(fallback)
+
+
+DOUBAO_MODEL_ID_MAP = parse_model_id_map(DOUBAO_MODEL_ID_MAP_RAW, DEFAULT_DOUBAO_MODEL_ID_MAP)
 
 
 # ===========================================
@@ -394,11 +416,15 @@ def resolve_qwen_vision_model(model_name: str) -> str:
     return os.environ.get("QWEN_VISION_FALLBACK", "qwen-vl-max")
 
 
+def resolve_doubao_model(model_name: str) -> str:
+    return DOUBAO_MODEL_ID_MAP.get(model_name, model_name)
+
+
 def resolve_text_model_config(model_name: str) -> tuple[str, str, str, str]:
     if model_name == "qwen":
         return normalize_qwen_api_url(QWEN_API_URL), QWEN_API_KEY, QWEN_TEXT_MODEL, "Qwen"
     if model_name == "doubao":
-        return normalize_qwen_api_url(DOUBAO_API_URL), DOUBAO_API_KEY, DOUBAO_MODEL_NAME, "豆包"
+        return normalize_qwen_api_url(DOUBAO_API_URL), DOUBAO_API_KEY, resolve_doubao_model(DOUBAO_MODEL_NAME), "豆包"
     if model_name == "gemini":
         return normalize_qwen_api_url(GEMINI_API_URL), GEMINI_API_KEY, GEMINI_MODEL_NAME, "Gemini"
     return DS_API_URL, DS_API_KEY, DS_MODEL_NAME, "DeepSeek"
