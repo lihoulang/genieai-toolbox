@@ -178,9 +178,9 @@ const toggleDarkMode = () => {
   }
 };
 
-const goPrivacyPolicy = () => openExternalUrl(PRIVACY_POLICY_URL, '/pages/legal/privacy');
-const goAccountDeletion = () => openExternalUrl(ACCOUNT_DELETION_URL, '/pages/legal/account-delete');
-const goSupportLink = () => openExternalUrl(SUPPORT_URL, '/pages/legal/support');
+const goPrivacyPolicy = () => openExternalUrl(PRIVACY_POLICY_URL);
+const goAccountDeletion = () => openExternalUrl(ACCOUNT_DELETION_URL);
+const goSupportLink = () => openExternalUrl(SUPPORT_URL);
 
 const handleDeleteAccount = () => {
   uni.showModal({

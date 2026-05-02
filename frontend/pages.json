@@ -19,18 +19,6 @@
     {
       "path": "pages/register/register",
       "style": { "navigationBarTitleText": "注册", "navigationStyle": "custom" }
-    },
-    {
-      "path": "pages/legal/privacy",
-      "style": { "navigationBarTitleText": "隐私政策" }
-    },
-    {
-      "path": "pages/legal/account-delete",
-      "style": { "navigationBarTitleText": "账号删除说明" }
-    },
-    {
-      "path": "pages/legal/support",
-      "style": { "navigationBarTitleText": "支持" }
     }
   ],
   "tabBar": {
