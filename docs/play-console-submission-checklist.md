@@ -2,6 +2,13 @@
 
 Updated: 2026-05-02
 
+Related docs:
+
+- `docs/play-console-store-copy.md`
+- `docs/play-console-data-safety-draft.md`
+- `docs/play-console-app-access.md`
+- `docs/release-smoke-test.md`
+
 ## 1. Release Package
 
 - Confirm final Android package name / `appid`

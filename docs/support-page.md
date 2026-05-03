@@ -11,8 +11,8 @@ Recommended contents for the public support page:
 - account deletion link
 - common issues and troubleshooting
 
-Suggested public URL example:
+Suggested public URL:
 
-- `https://uniai.mastermath.cn/support`
+- `https://lihoulang.github.io/genieai-toolbox/support.html`
 
 Before Google Play submission, make sure this page is publicly accessible over HTTPS and matches the in-app support entry.
