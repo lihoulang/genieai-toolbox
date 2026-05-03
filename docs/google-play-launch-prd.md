@@ -46,7 +46,7 @@
 
 - `frontend/manifest.json:3` 的 `appid` 为空，说明 App 还没有正式包标识。
 - `frontend/manifest.json` 只有非常基础的配置，没有看到完整的 `app-plus`、Android 打包、权限说明、图标、启动图、签名相关配置。
-- `frontend/config.js:2` 仍然写死为 `http://uniai.mastermath.cn`，正式上架必须改为 HTTPS-only。
+- `frontend/config.js` 现已切换到生产 `HTTPS` 域名，但仍需用 release build 真机验证证书、连通性和请求稳定性。
 
 ### 3.2 账号与数据安全不足
 
@@ -137,8 +137,8 @@
 
 #### 当前差距
 
-- `frontend/manifest.json:3` 为空
-- `frontend/config.js:2` 仍为 HTTP
+- 仍需确认 release build 全链路实际走 `HTTPS`
+- 仍需完成正式签名、AAB 产物与真机回归验证
 
 #### 验收标准
 
@@ -406,7 +406,7 @@
 
 建议先做：
 
-1. HTTPS + AAB + 包名/签名/版本配置
+1. AAB + 包名/签名/版本配置 + HTTPS release 验证
 2. token 鉴权 + 密码哈希升级 + 资源归属校验
 3. 隐私政策 + Data safety + 删除账号
 4. 余额/扣费/越权逻辑修复

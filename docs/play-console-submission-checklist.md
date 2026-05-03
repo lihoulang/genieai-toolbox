@@ -1,6 +1,6 @@
 # Google Play Submission Checklist
 
-Updated: 2026-05-02
+Updated: 2026-05-03
 
 Related docs:
 
@@ -15,6 +15,7 @@ Related docs:
   Chosen for this project:
   - uni-app `appid`: `__UNI__3617C61`
   - Android package name: `com.genieai.toolbox`
+- Confirm production API base URL is `https://uniai.mastermath.cn`
 - Prepare release signing key and backup
 - Build release `.aab`
 - Verify version name and version code
@@ -76,7 +77,7 @@ Related docs:
 
 ## 7. Pre-Submission Blocking Questions
 
-- Is the backend domain already HTTPS with a valid certificate?
+- Is the backend domain already HTTPS with a valid certificate? Current target: `Yes`
 - Are public legal documents deployed and matching the in-app text?
 - Is the current developer account subject to closed testing before production?
 - Are you intentionally shipping AI video in v1.0?

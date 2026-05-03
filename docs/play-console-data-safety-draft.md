@@ -1,6 +1,6 @@
 # Play Console Data Safety Draft
 
-Updated: 2026-05-02
+Updated: 2026-05-03
 
 This draft is based on the current repository code and public legal pages. It is meant to speed up Play Console entry, not replace your final legal and production review.
 
@@ -14,14 +14,14 @@ This draft is based on the current repository code and public legal pages. It is
 
 ## Blocking Checks Before Final Submission
 
-- Do not mark `Encrypted in transit` as `Yes` until the production backend and all relevant endpoints are actually served over HTTPS.
+- Production backend has been switched to HTTPS. Verify the release build still points to the same HTTPS endpoint before submission.
 - Reconfirm whether each model provider is acting as your `service provider` under Google Play's Data safety definitions. If yes, data sent to those providers is usually declared as `collected` but not `shared`. If not, switch those data types to `shared`.
 - Reconfirm that no analytics, ads, crash reporting, or tracking SDKs were added after this draft was written.
 
 ## Recommended High-Level Answers
 
 - Does the app collect user data? `Yes`
-- Is all user data encrypted in transit? `Yes, but only after production HTTPS is live`
+- Is all user data encrypted in transit? `Yes`
 - Does the app provide a deletion request mechanism? `Yes`
 - Is a privacy policy required? `Yes`
 
@@ -115,8 +115,8 @@ Based on the current repository snapshot, these are not evident in code and shou
 ## Security Practices
 
 - Encryption in transit:
-  - Final answer target: `Yes`
-  - Blocking condition: backend must be HTTPS in production before you submit
+  - Final answer: `Yes`
+  - Current basis: production API base URL is configured to use HTTPS
 
 - Deletion request mechanism:
   - Final answer: `Yes`
@@ -143,9 +143,8 @@ Based on the current repository snapshot, these are not evident in code and shou
 
 ## Final Manual Checks In Play Console
 
-- Verify the final production backend uses HTTPS before answering `Encrypted in transit = Yes`
+- Verify the release build still points to the HTTPS production backend before answering `Encrypted in transit = Yes`
 - Verify reviewer account credentials are reusable and provided in English
 - Verify public legal page URLs match the exact links used in the app
 - Verify the app description and screenshots mention that current AI video output is silent
 - Verify no post-build SDKs add new data collection beyond this draft
-
