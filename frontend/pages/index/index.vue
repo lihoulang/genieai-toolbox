@@ -122,6 +122,24 @@
             <text v-else-if="message.text" class="bubble-text">{{ message.text }}</text>
           </view>
 
+          <view v-if="message.role === 'assistant' && !message.isLoading" class="bubble-action-row">
+            <view class="bubble-action-btn" hover-class="is-pressed" hover-stay-time="80" @click.stop="copyMessage(message)">
+              复制
+            </view>
+            <view
+              class="bubble-action-btn"
+              :class="{ 'bubble-action-btn-active': isMessageFavorited(message) }"
+              hover-class="is-pressed"
+              hover-stay-time="80"
+              @click.stop="toggleFavoriteMessage(message)"
+            >
+              {{ isMessageFavorited(message) ? '已收藏' : '收藏' }}
+            </view>
+            <view class="bubble-action-btn" hover-class="is-pressed" hover-stay-time="80" @click.stop="shareMessage(message)">
+              分享
+            </view>
+          </view>
+
           <view v-if="message.suggestions.length" class="bubble-suggestion-row">
             <view
               v-for="suggestion in message.suggestions"
@@ -204,6 +222,7 @@ const modelOptions = [
 
 const supportedModelValues = modelOptions.map((item) => item.value);
 const storedModel = uni.getStorageSync('chat_model');
+const FAVORITE_MESSAGES_STORAGE_KEY = 'favorite_assistant_messages';
 
 const userId = ref(0);
 const balance = ref(0);
@@ -218,6 +237,7 @@ const attachment = ref(null);
 const showHistoryPanel = ref(false);
 const showModelMenu = ref(false);
 const currentModel = ref(supportedModelValues.includes(storedModel) ? storedModel : 'doubao');
+const favoriteMessageMap = ref({});
 
 const canSend = computed(() => Boolean(draft.value.trim() || attachment.value));
 const currentModelLabel = computed(() => {
@@ -256,19 +276,139 @@ const extractMedia = (content = '') => {
   };
 };
 
-const buildMessage = ({ role, content = '', image = '', key }) => {
+const normalizeFavoriteStorage = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value;
+};
+
+const createStableDigest = (value = '') => {
+  let hash = 0;
+  const source = String(value);
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+  }
+  return hash.toString(16);
+};
+
+const createFavoriteKey = ({ conversationId = 0, plainText = '', imageUrl = '', mediaType = '', mediaUrl = '' }) => {
+  const source = [plainText, imageUrl, mediaType, mediaUrl].join('::');
+  return `assistant::${conversationId || 'draft'}::${createStableDigest(source)}`;
+};
+
+const buildMessageActionText = (message) => {
+  const parts = [];
+  if (message.text) {
+    parts.push(message.text);
+  }
+  if (message.imageUrl) {
+    parts.push(`图片: ${message.imageUrl}`);
+  }
+  if (message.mediaType && message.mediaUrl) {
+    parts.push(`${message.mediaType === 'video' ? '视频' : '图片'}: ${message.mediaUrl}`);
+  }
+  return parts.join('\n\n').trim();
+};
+
+const loadFavoriteMessages = () => {
+  favoriteMessageMap.value = normalizeFavoriteStorage(uni.getStorageSync(FAVORITE_MESSAGES_STORAGE_KEY));
+};
+
+const persistFavoriteMessages = () => {
+  uni.setStorageSync(FAVORITE_MESSAGES_STORAGE_KEY, favoriteMessageMap.value);
+};
+
+const isMessageFavorited = (message) => Boolean(message.favoriteKey && favoriteMessageMap.value[message.favoriteKey]);
+
+const copyMessage = (message) => {
+  const text = buildMessageActionText(message);
+  if (!text) {
+    uni.showToast({ title: '暂无可复制内容', icon: 'none' });
+    return;
+  }
+  uni.setClipboardData({
+    data: text,
+    success: () => {
+      uni.showToast({ title: '已复制', icon: 'none' });
+    },
+  });
+};
+
+const toggleFavoriteMessage = (message) => {
+  if (!message.favoriteKey) return;
+  const nextMap = { ...favoriteMessageMap.value };
+  if (nextMap[message.favoriteKey]) {
+    delete nextMap[message.favoriteKey];
+    favoriteMessageMap.value = nextMap;
+    persistFavoriteMessages();
+    uni.showToast({ title: '已取消收藏', icon: 'none' });
+    return;
+  }
+  nextMap[message.favoriteKey] = {
+    key: message.favoriteKey,
+    text: message.text || '',
+    imageUrl: message.imageUrl || '',
+    mediaType: message.mediaType || '',
+    mediaUrl: message.mediaUrl || '',
+    conversationId: activeConversationId.value || 0,
+    savedAt: Date.now(),
+  };
+  favoriteMessageMap.value = nextMap;
+  persistFavoriteMessages();
+  uni.showToast({ title: '已收藏', icon: 'none' });
+};
+
+const shareMessage = async (message) => {
+  const text = buildMessageActionText(message);
+  if (!text) {
+    uni.showToast({ title: '暂无可分享内容', icon: 'none' });
+    return;
+  }
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      await navigator.share({
+        title: 'AI 回复',
+        text,
+      });
+      return;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
+    }
+  }
+  uni.setClipboardData({
+    data: text,
+    success: () => {
+      uni.showToast({ title: '当前平台未接入系统分享，内容已复制', icon: 'none' });
+    },
+  });
+};
+
+const buildMessage = ({ role, content = '', image = '', key, conversationId = 0, isLoading = false }) => {
   const suggestionResult = extractSuggestions(content);
   const mediaResult = extractMedia(suggestionResult.text);
   const plainText = mediaResult.text.trim();
+  const normalizedImage = normalizeStoredImage(image);
   return {
     id: key || `${role}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
     role: role === 'assistant' ? 'assistant' : 'user',
     text: plainText,
     html: role === 'assistant' && plainText ? renderMarkdown(plainText) : '',
-    imageUrl: normalizeStoredImage(image),
+    imageUrl: normalizedImage,
     mediaType: mediaResult.mediaType,
     mediaUrl: mediaResult.mediaUrl,
     suggestions: role === 'assistant' ? suggestionResult.suggestions : [],
+    favoriteKey:
+      role === 'assistant'
+        ? createFavoriteKey({
+            conversationId,
+            plainText,
+            imageUrl: normalizedImage,
+            mediaType: mediaResult.mediaType,
+            mediaUrl: mediaResult.mediaUrl,
+          })
+        : '',
+    isLoading,
   };
 };
 
@@ -313,6 +453,7 @@ const loadHistory = async (conversationId) => {
       content: item.content || '',
       image: item.image || '',
       key: `${conversationId}-${index}`,
+      conversationId,
     }),
   );
   await scrollToBottom();
@@ -533,6 +674,8 @@ const sendMessage = async () => {
       mediaType: '',
       mediaUrl: '',
       suggestions: [],
+      favoriteKey: '',
+      isLoading: true,
     },
   ];
   await scrollToBottom();
@@ -556,6 +699,7 @@ const sendMessage = async () => {
         role: 'assistant',
         content: extractResponseText(res.data),
         key: `assistant-${Date.now()}`,
+        conversationId,
       }),
     );
     await Promise.all([syncBalance(), syncConversations()]);
@@ -565,6 +709,7 @@ const sendMessage = async () => {
         role: 'assistant',
         content: '当前请求未完成，请稍后重试。',
         key: `assistant-error-${Date.now()}`,
+        conversationId: activeConversationId.value,
       }),
     );
   } finally {
@@ -583,6 +728,7 @@ const consumePendingPrompt = async () => {
 
 const syncPage = async () => {
   if (!ensureLoggedIn()) return;
+  loadFavoriteMessages();
   const storedUserId = Number(uni.getStorageSync('user_id') || 0);
   if (!storedUserId) {
     redirectToLogin('请先登录');
@@ -1162,6 +1308,34 @@ onShow(() => {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-8);
+}
+
+.bubble-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  padding-left: 2px;
+}
+
+.bubble-action-btn {
+  min-width: 54px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(224, 231, 255, 0.96);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.bubble-action-btn-active {
+  background: rgba(79, 70, 229, 0.1);
+  border-color: rgba(129, 140, 248, 0.38);
+  color: var(--color-primary);
 }
 
 .bubble-suggestion {
