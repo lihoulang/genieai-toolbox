@@ -20,17 +20,24 @@
     <view v-if="showHistoryPanel" class="history-panel">
       <view class="history-panel-head">
         <view>
-          <text class="history-panel-title">历史对话</text>
-          <text class="history-panel-subtitle">按时间查看并切换会话</text>
+          <text class="history-panel-eyebrow">Genie AI Toolbox</text>
+          <text class="history-panel-title">对话记录</text>
+          <text class="history-panel-subtitle">从左侧抽屉快速切换历史会话</text>
         </view>
         <view class="history-panel-close" hover-class="is-pressed" hover-stay-time="80" @click="closeConversationMenu">×</view>
       </view>
 
+      <view class="history-primary-btn" hover-class="is-pressed" hover-stay-time="80" @click="handleHistoryAction('new')">
+        <text class="history-primary-icon">+</text>
+        <text>发起新对话</text>
+      </view>
+
       <view class="history-actions">
-        <view class="history-action-btn" hover-class="is-pressed" hover-stay-time="80" @click="handleHistoryAction('new')">新建</view>
-        <view class="history-action-btn" hover-class="is-pressed" hover-stay-time="80" @click="handleHistoryAction('refresh')">刷新</view>
+        <view class="history-action-btn" hover-class="is-pressed" hover-stay-time="80" @click="handleHistoryAction('refresh')">刷新列表</view>
         <view class="history-action-btn history-action-danger" hover-class="is-pressed" hover-stay-time="80" @click="handleHistoryAction('clear')">清空当前</view>
       </view>
+
+      <text class="history-section-title">最近对话</text>
 
       <scroll-view class="history-list" scroll-y>
         <view
@@ -613,24 +620,26 @@ onShow(() => {
   position: absolute;
   inset: 0;
   z-index: 20;
-  background: rgba(15, 23, 42, 0.16);
+  background: rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(2px);
 }
 
 .history-panel {
   position: absolute;
-  top: calc(72px + var(--safe-area-top, 0px));
-  left: var(--space-16);
-  right: var(--space-16);
+  top: 0;
+  left: 0;
+  bottom: 0;
   z-index: 21;
-  max-height: 58vh;
-  padding: var(--space-16);
-  border-radius: var(--radius-lg);
+  width: min(82vw, 320px);
+  padding: calc(var(--safe-area-top, 0px) + 18px) var(--space-16) calc(18px + var(--safe-area-bottom, 0px));
+  border-radius: 0 24px 24px 0;
   background: rgba(255, 255, 255, 0.98);
   box-shadow: var(--shadow-floating);
-  border: 1px solid rgba(224, 231, 255, 0.86);
+  border-right: 1px solid rgba(224, 231, 255, 0.86);
   display: flex;
   flex-direction: column;
   gap: var(--space-16);
+  animation: sidebar-slide-in 220ms ease both;
 }
 
 .history-panel-head {
@@ -640,17 +649,28 @@ onShow(() => {
   gap: var(--space-12);
 }
 
+.history-panel-eyebrow {
+  display: block;
+  color: var(--color-primary);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
 .history-panel-title {
   display: block;
+  margin-top: 4px;
   color: var(--color-text-primary);
-  font-size: 17px;
-  line-height: 24px;
-  font-weight: 600;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 700;
 }
 
 .history-panel-subtitle {
   display: block;
-  margin-top: 2px;
+  margin-top: 6px;
   color: var(--color-text-tertiary);
   font-size: 13px;
   line-height: 18px;
@@ -670,13 +690,35 @@ onShow(() => {
   flex-shrink: 0;
 }
 
+.history-primary-btn {
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 14px;
+  background: var(--color-primary);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--color-text-inverse);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.history-primary-icon {
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 500;
+}
+
 .history-actions {
   display: flex;
   gap: var(--space-8);
 }
 
 .history-action-btn {
-  min-width: 68px;
+  flex: 1;
   height: 36px;
   padding: 0 14px;
   border-radius: var(--radius-pill);
@@ -694,14 +736,22 @@ onShow(() => {
   background: rgba(239, 68, 68, 0.08);
 }
 
+.history-section-title {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
 .history-list {
   flex: 1;
   min-height: 0;
 }
 
 .history-item {
-  padding: 14px 0;
-  border-bottom: 1px solid var(--color-divider);
+  padding: 14px 12px;
+  border-bottom: 1px solid rgba(237, 240, 244, 0.78);
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -710,6 +760,14 @@ onShow(() => {
 
 .history-item:last-child {
   border-bottom: none;
+}
+
+.history-item + .history-item {
+  margin-top: 6px;
+}
+
+.history-item-active {
+  background: rgba(224, 231, 255, 0.56);
 }
 
 .history-item-copy {
@@ -756,6 +814,18 @@ onShow(() => {
   color: var(--color-text-tertiary);
   font-size: 13px;
   line-height: 18px;
+}
+
+@keyframes sidebar-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .balance-pill {
