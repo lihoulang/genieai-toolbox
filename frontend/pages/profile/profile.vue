@@ -240,17 +240,22 @@ onShow(() => {
 <style scoped>
 .profile-page {
   min-height: 100vh;
+  height: 100vh;
   background: var(--bg-page);
+  display: flex;
+  flex-direction: column;
+  padding-bottom: calc(56px + var(--safe-area-bottom, 0px));
 }
 
 .topbar {
-  height: 60px;
-  padding: 8px 14px 0;
+  height: calc(60px + var(--safe-area-top, 0px));
+  padding: calc(8px + var(--safe-area-top, 0px)) 14px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: #fff;
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .menu-btn,
@@ -281,8 +286,9 @@ onShow(() => {
 }
 
 .profile-scroll {
-  height: calc(100vh - 110px);
-  padding-bottom: 20px;
+  flex: 1;
+  min-height: 0;
+  padding-bottom: calc(20px + var(--safe-area-bottom, 0px));
 }
 
 .profile-hero {

@@ -13,6 +13,12 @@ export default {
 
 <style>
 :root {
+  --safe-area-top: 0px;
+  --safe-area-bottom: 0px;
+  --safe-area-top: constant(safe-area-inset-top);
+  --safe-area-top: env(safe-area-inset-top);
+  --safe-area-bottom: constant(safe-area-inset-bottom);
+  --safe-area-bottom: env(safe-area-inset-bottom);
   --bg-page: #f7f8fb;
   --bg-chat: #ffffff;
   --bg-card: #ffffff;

@@ -474,7 +474,7 @@ const initApp = async () => {
   background: #fff;
   display: flex;
   flex-direction: column;
-  padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  padding-bottom: calc(56px + var(--safe-area-bottom, 0px));
 }
 
 .sidebar-mask {
@@ -504,8 +504,8 @@ const initApp = async () => {
 }
 
 .sidebar-header {
-  height: 60px;
-  padding: 8px 16px 0;
+  height: calc(60px + var(--safe-area-top, 0px));
+  padding: calc(8px + var(--safe-area-top, 0px)) 16px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -594,8 +594,8 @@ const initApp = async () => {
 }
 
 .topbar {
-  height: 60px;
-  padding: 8px 14px 0;
+  height: calc(60px + var(--safe-area-top, 0px));
+  padding: calc(8px + var(--safe-area-top, 0px)) 14px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;

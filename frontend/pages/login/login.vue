@@ -102,8 +102,8 @@ const goRegister = () => { uni.navigateTo({ url: '/pages/register/register' }); 
 }
 
 .topbar {
-  height: 60px;
-  padding: 8px 14px 0;
+  height: calc(60px + var(--safe-area-top, 0px));
+  padding: calc(8px + var(--safe-area-top, 0px)) 14px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
