@@ -116,9 +116,9 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import { marked } from 'marked';
 import { API_BASE } from '../../config.js';
 import { ensureLoggedIn, getAuthHeaders, redirectToLogin, requestWithAuth } from '../../utils/auth.js';
+import { renderMarkdown as renderMarkdownHtml } from '../../utils/markdown.js';
 
 const inputText = ref('');
 const isLoading = ref(false);
@@ -154,27 +154,10 @@ const filteredConversations = computed(() => {
   return conversations.value.filter((conv) => conv.title.toLowerCase().includes(kw));
 });
 
-const renderer = new marked.Renderer();
-renderer.code = function(tokenOrCode, language) {
-  const codeText = typeof tokenOrCode === 'object' ? tokenOrCode.text : tokenOrCode;
-  const lang = typeof tokenOrCode === 'object' ? (tokenOrCode.lang || 'text') : (language || 'text');
-  const safe = (codeText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const formatted = safe.replace(/\n/g, '<br/>').replace(/ /g, '&nbsp;');
-  return `<div style="background:#1f2430;border-radius:10px;margin:10px 0;overflow:hidden;">
-    <div style="padding:8px 12px;background:#2d3342;color:#b7bfcd;font-size:12px;">${lang}</div>
-    <div style="padding:12px 14px;color:#edf1f7;font-family:Consolas,monospace;font-size:13px;line-height:1.7;">${formatted}</div>
-  </div>`;
-};
-marked.setOptions({ renderer });
-
 const renderMarkdown = (text) => {
   if (!text) return '';
-  let content = text.replace(/\[IMAGE:[^\]]*$/, '').replace(/\[VIDEO:[^\]]*$/, '').replace(/@@@[\s\S]*?(@@@|$)/g, '');
-  let html = marked.parse(content);
-  html = html.replace(/<table/g, '<table style="border-collapse:collapse;width:100%;margin:10px 0;font-size:13px;"');
-  html = html.replace(/<th/g, '<th style="border:1px solid #ebeef5;padding:8px;background:#f6f7fb;text-align:left;"');
-  html = html.replace(/<td/g, '<td style="border:1px solid #ebeef5;padding:8px;"');
-  return html;
+  const content = text.replace(/\[IMAGE:[^\]]*$/, '').replace(/\[VIDEO:[^\]]*$/, '').replace(/@@@[\s\S]*?(@@@|$)/g, '');
+  return renderMarkdownHtml(content);
 };
 
 const systemPrompt = { role: 'system', content: 'You are AI Assistant.' };
