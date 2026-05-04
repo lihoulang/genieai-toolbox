@@ -16,25 +16,41 @@
       </view>
     </view>
 
-    <scroll-view class="conversation-scroll" :scroll-x="true" :enable-flex="true" show-scrollbar="false">
-      <view class="conversation-row">
-        <view class="conversation-chip conversation-chip-new" hover-class="is-pressed" hover-stay-time="80" @click="startNewConversation">
-          <text class="conversation-chip-plus">+</text>
-          <text>新对话</text>
+    <view v-if="showHistoryPanel" class="history-mask" @click="closeConversationMenu"></view>
+    <view v-if="showHistoryPanel" class="history-panel">
+      <view class="history-panel-head">
+        <view>
+          <text class="history-panel-title">历史对话</text>
+          <text class="history-panel-subtitle">按时间查看并切换会话</text>
         </view>
+        <view class="history-panel-close" hover-class="is-pressed" hover-stay-time="80" @click="closeConversationMenu">×</view>
+      </view>
+
+      <view class="history-actions">
+        <view class="history-action-btn" hover-class="is-pressed" hover-stay-time="80" @click="handleHistoryAction('new')">新建</view>
+        <view class="history-action-btn" hover-class="is-pressed" hover-stay-time="80" @click="handleHistoryAction('refresh')">刷新</view>
+        <view class="history-action-btn history-action-danger" hover-class="is-pressed" hover-stay-time="80" @click="handleHistoryAction('clear')">清空当前</view>
+      </view>
+
+      <scroll-view class="history-list" scroll-y>
         <view
           v-for="item in conversations"
           :key="item.id"
-          class="conversation-chip"
-          :class="{ 'conversation-chip-active': activeConversationId === item.id }"
+          class="history-item"
+          :class="{ 'history-item-active': activeConversationId === item.id }"
           hover-class="is-pressed"
           hover-stay-time="80"
-          @click="selectConversation(item.id)"
+          @click="selectConversation(item.id, true)"
         >
-          <text class="conversation-chip-text">{{ item.title || '新对话' }}</text>
+          <view class="history-item-copy">
+            <text class="history-item-title">{{ item.title || '新对话' }}</text>
+            <text class="history-item-time">{{ item.created_at || '刚刚' }}</text>
+          </view>
+          <view v-if="activeConversationId === item.id" class="history-item-badge">当前</view>
         </view>
-      </view>
-    </scroll-view>
+        <view v-if="!conversations.length" class="history-empty">还没有历史对话</view>
+      </scroll-view>
+    </view>
 
     <scroll-view class="message-scroll" scroll-y :scroll-into-view="scrollAnchor" show-scrollbar="false">
       <view v-if="messages.length === 0" class="empty-state">
@@ -162,6 +178,7 @@ const isSending = ref(false);
 const scrollAnchor = ref('');
 const inputFocused = ref(false);
 const attachment = ref(null);
+const showHistoryPanel = ref(false);
 
 const canSend = computed(() => Boolean(draft.value.trim() || attachment.value));
 
@@ -276,11 +293,16 @@ const startNewConversation = async () => {
   messages.value = [];
   draft.value = '';
   attachment.value = null;
+  showHistoryPanel.value = false;
   await scrollToBottom();
 };
 
-const selectConversation = async (conversationId) => {
-  if (!conversationId || activeConversationId.value === conversationId) return;
+const selectConversation = async (conversationId, shouldCloseMenu = false) => {
+  if (!conversationId) return;
+  if (shouldCloseMenu) {
+    showHistoryPanel.value = false;
+  }
+  if (activeConversationId.value === conversationId) return;
   activeConversationId.value = conversationId;
   attachment.value = null;
   await loadHistory(conversationId);
@@ -309,23 +331,29 @@ const clearCurrentConversation = async () => {
 };
 
 const openConversationMenu = () => {
-  uni.showActionSheet({
-    itemList: ['新建对话', '刷新会话列表', '清空当前对话'],
-    success: async (result) => {
-      if (result.tapIndex === 0) {
-        await startNewConversation();
-      }
-      if (result.tapIndex === 1) {
-        await syncConversations();
-        if (activeConversationId.value) {
-          await loadHistory(activeConversationId.value);
-        }
-      }
-      if (result.tapIndex === 2) {
-        clearCurrentConversation();
-      }
-    },
-  });
+  showHistoryPanel.value = !showHistoryPanel.value;
+};
+
+const closeConversationMenu = () => {
+  showHistoryPanel.value = false;
+};
+
+const handleHistoryAction = async (action) => {
+  if (action === 'new') {
+    await startNewConversation();
+    return;
+  }
+  if (action === 'refresh') {
+    await syncConversations();
+    if (activeConversationId.value) {
+      await loadHistory(activeConversationId.value);
+    }
+    return;
+  }
+  if (action === 'clear') {
+    closeConversationMenu();
+    clearCurrentConversation();
+  }
 };
 
 const blobToDataUrl = (blob) =>
@@ -527,6 +555,8 @@ onShow(() => {
 }
 
 .topbar {
+  position: relative;
+  z-index: 12;
   height: calc(72px + var(--safe-area-top, 0px));
   padding: calc(12px + var(--safe-area-top, 0px)) var(--space-16) 8px;
   display: flex;
@@ -579,6 +609,155 @@ onShow(() => {
   line-height: 18px;
 }
 
+.history-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(15, 23, 42, 0.16);
+}
+
+.history-panel {
+  position: absolute;
+  top: calc(72px + var(--safe-area-top, 0px));
+  left: var(--space-16);
+  right: var(--space-16);
+  z-index: 21;
+  max-height: 58vh;
+  padding: var(--space-16);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: var(--shadow-floating);
+  border: 1px solid rgba(224, 231, 255, 0.86);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.history-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.history-panel-title {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.history-panel-subtitle {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.history-panel-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.history-actions {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.history-action-btn {
+  min-width: 68px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.history-action-danger {
+  color: var(--color-danger);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.history-list {
+  flex: 1;
+  min-height: 0;
+}
+
+.history-item {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--color-divider);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.history-item-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-item-title {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item-time {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.history-item-badge {
+  padding: 6px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 12px;
+  line-height: 16px;
+  flex-shrink: 0;
+}
+
+.history-item-active .history-item-title {
+  color: var(--color-primary);
+}
+
+.history-empty {
+  padding: var(--space-24) 0;
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
 .balance-pill {
   min-width: 72px;
   padding: 8px 12px;
@@ -596,60 +775,6 @@ onShow(() => {
   font-size: 15px;
   line-height: 22px;
   font-weight: 600;
-}
-
-.conversation-scroll {
-  padding: 12px 0 10px;
-  background: rgba(255, 255, 255, 0.72);
-  flex-shrink: 0;
-}
-
-.conversation-row {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-8);
-  padding: 0 var(--space-16);
-}
-
-.conversation-chip {
-  max-width: 180px;
-  height: 36px;
-  padding: 0 14px;
-  border-radius: var(--radius-pill);
-  background: rgba(243, 244, 246, 0.96);
-  border: 1px solid rgba(209, 213, 219, 0.7);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  line-height: 18px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-.conversation-chip-active {
-  background: var(--color-primary);
-  border-color: transparent;
-  color: var(--color-text-inverse);
-  box-shadow: var(--shadow-card);
-}
-
-.conversation-chip-new {
-  background: rgba(255, 255, 255, 0.96);
-  color: var(--color-primary);
-  border-color: rgba(79, 70, 229, 0.16);
-}
-
-.conversation-chip-plus {
-  font-size: 16px;
-  line-height: 1;
-  font-weight: 600;
-}
-
-.conversation-chip-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .message-scroll {
