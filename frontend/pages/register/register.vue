@@ -112,33 +112,36 @@ const handleRegister = async () => {
 .auth-page {
   position: fixed;
   inset: 0;
-  background: #fff;
+  background:
+    radial-gradient(circle at top right, rgba(129, 140, 248, 0.18), transparent 26%),
+    linear-gradient(180deg, #f9fbff 0%, var(--color-page) 20%, var(--color-page) 100%);
   display: flex;
   flex-direction: column;
 }
 
 .topbar {
-  height: calc(60px + var(--safe-area-top, 0px));
-  padding: calc(8px + var(--safe-area-top, 0px)) 14px 0;
+  height: calc(72px + var(--safe-area-top, 0px));
+  padding: calc(12px + var(--safe-area-top, 0px)) var(--space-16) 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  border-bottom: 1px solid #eceff4;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid rgba(224, 231, 255, 0.7);
+  backdrop-filter: blur(18px);
   flex-shrink: 0;
 }
 
 .back-btn,
 .topbar-placeholder {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .back-btn {
-  color: #61697b;
+  color: var(--color-text-secondary);
   font-size: 24px;
   line-height: 1;
 }
@@ -153,25 +156,25 @@ const handleRegister = async () => {
   display: block;
   font-size: 17px;
   font-weight: 600;
-  color: #202634;
+  line-height: 24px;
+  color: var(--color-text-primary);
 }
 
 .topbar-subtitle {
   display: block;
   margin-top: 2px;
-  font-size: 12px;
-  color: #9aa3b3;
+  font-size: 13px;
+  color: var(--color-text-tertiary);
 }
 
 .auth-scroll {
   flex: 1;
   min-height: 0;
-  padding: 22px 14px 24px;
-  background: #fff;
+  padding: 24px var(--space-16) calc(var(--space-24) + var(--safe-area-bottom, 0px));
 }
 
 .brand-block {
-  padding: 18px 8px 10px;
+  padding: 18px 8px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -179,8 +182,8 @@ const handleRegister = async () => {
 
 .brand-mark {
   position: relative;
-  width: 124px;
-  height: 118px;
+  width: 128px;
+  height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -190,8 +193,8 @@ const handleRegister = async () => {
   position: absolute;
   inset: 0;
   border-radius: 34px;
-  border: 1px solid rgba(102, 112, 232, 0.16);
-  background: linear-gradient(135deg, rgba(102, 112, 232, 0.12), rgba(93, 98, 201, 0.04));
+  border: 1px solid rgba(129, 140, 248, 0.18);
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(129, 140, 248, 0.02));
 }
 
 .brand-orbit-a {
@@ -202,7 +205,7 @@ const handleRegister = async () => {
   inset: 10px;
   border-radius: 28px;
   transform: rotate(-10deg);
-  border-color: rgba(102, 112, 232, 0.22);
+  border-color: rgba(129, 140, 248, 0.26);
 }
 
 .brand-core {
@@ -211,8 +214,8 @@ const handleRegister = async () => {
   width: 78px;
   height: 78px;
   border-radius: 24px;
-  background: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
-  box-shadow: 0 16px 36px rgba(102, 112, 232, 0.24);
+  background: var(--color-primary-gradient);
+  box-shadow: var(--shadow-raised);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -228,9 +231,10 @@ const handleRegister = async () => {
 .brand-title {
   display: block;
   margin-top: 18px;
-  font-size: 22px;
+  font-size: 20px;
+  line-height: 28px;
   font-weight: 700;
-  color: #232939;
+  color: var(--color-text-primary);
 }
 
 .brand-subtitle {
@@ -238,19 +242,17 @@ const handleRegister = async () => {
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.6;
-  color: #97a0af;
+  color: var(--color-text-tertiary);
   text-align: center;
 }
 
 .form-card {
   margin-top: 14px;
-  background: #fff;
-  border: 1px solid #dfe4ee;
-  border-radius: 16px;
-}
-
-.form-card {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: var(--radius-lg);
   padding: 18px 16px 16px;
+  box-shadow: var(--shadow-card);
 }
 
 .card-head {
@@ -262,16 +264,17 @@ const handleRegister = async () => {
 
 .card-title {
   display: block;
-  font-size: 18px;
+  font-size: 17px;
+  line-height: 24px;
   font-weight: 700;
-  color: #232939;
+  color: var(--color-text-primary);
 }
 
 .card-subtitle {
   display: block;
   margin-top: 5px;
-  font-size: 12px;
-  color: #98a1b0;
+  font-size: 13px;
+  color: var(--color-text-tertiary);
 }
 
 .card-badge {
@@ -280,8 +283,8 @@ const handleRegister = async () => {
   height: 30px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid #d7dcfb;
-  color: #6670e8;
+  border: 1px solid var(--color-primary-soft);
+  color: var(--color-primary);
   font-size: 12px;
   line-height: 30px;
   text-align: center;
@@ -296,25 +299,25 @@ const handleRegister = async () => {
 
 .input-row {
   min-height: 54px;
-  border: 1px solid #dfe4ee;
-  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   background: #fff;
-  box-shadow: none !important;
+  box-shadow: var(--shadow-card);
   display: flex;
   align-items: center;
-  padding: 0 14px;
+  padding: 0 16px;
   gap: 12px;
 }
 
 .input-row:focus-within {
-  border-color: #dfe4ee;
-  background: #fff;
+  border-color: var(--color-primary);
+  background: #fafafa;
 }
 
 .field-tag {
   flex-shrink: 0;
   width: 38px;
-  color: #8d97a8;
+  color: var(--color-text-tertiary);
   font-size: 13px;
 }
 
@@ -322,7 +325,7 @@ const handleRegister = async () => {
   flex: 1;
   height: 52px;
   font-size: 15px;
-  color: #232939;
+  color: var(--color-text-primary);
   background: transparent;
   border: none;
   outline: none;
@@ -348,13 +351,13 @@ const handleRegister = async () => {
   outline: none !important;
   box-shadow: none !important;
   -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
-  -webkit-text-fill-color: #232939 !important;
-  caret-color: #232939;
+  -webkit-text-fill-color: var(--color-text-primary) !important;
+  caret-color: var(--color-text-primary);
   transition: background-color 99999s ease-in-out 0s;
 }
 
 :deep(.styled-input .uni-input-placeholder) {
-  color: #a2aabd !important;
+  color: var(--color-text-tertiary) !important;
 }
 
 :deep(input),
@@ -366,7 +369,7 @@ const handleRegister = async () => {
   background: #fff !important;
   box-shadow: none !important;
   -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
-  -webkit-text-fill-color: #232939 !important;
+  -webkit-text-fill-color: var(--color-text-primary) !important;
   outline: none !important;
   transition: background-color 99999s ease-in-out 0s;
 }
@@ -374,14 +377,15 @@ const handleRegister = async () => {
 .submit-btn {
   margin-top: 4px;
   height: 50px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
   color: #fff;
   font-size: 15px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: var(--shadow-raised);
 }
 
 .submit-btn:active {
@@ -403,11 +407,11 @@ const handleRegister = async () => {
 }
 
 .login-copy {
-  color: #9aa3b3;
+  color: var(--color-text-tertiary);
 }
 
 .login-link {
-  color: #6670e8;
+  color: var(--color-primary);
   font-weight: 600;
 }
 </style>

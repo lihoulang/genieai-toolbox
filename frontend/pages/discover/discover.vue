@@ -1,7 +1,7 @@
 <template>
   <view class="discover-page">
     <view class="topbar">
-      <view class="menu-btn" @click="goChat">
+      <view class="menu-btn" hover-class="is-pressed" hover-stay-time="80" @click="goChat">
         <view class="menu-line"></view>
         <view class="menu-line"></view>
         <view class="menu-line"></view>
@@ -12,30 +12,45 @@
 
     <scroll-view class="discover-scroll" scroll-y>
       <view class="hero-card">
-        <text class="hero-title">探索无限可能</text>
-        <text class="hero-desc">点击灵感卡片，一键体验 AI 多模态能力</text>
+        <view class="hero-copy">
+          <text class="hero-title">探索无限可能</text>
+          <text class="hero-desc">点击灵感卡片，一键体验 AI 多模态能力</text>
+        </view>
+        <view class="hero-ornament" aria-hidden="true">
+          <view class="hero-orb hero-orb-large"></view>
+          <view class="hero-orb hero-orb-small"></view>
+          <view class="hero-line hero-line-top"></view>
+          <view class="hero-line hero-line-bottom"></view>
+        </view>
       </view>
 
-      <scroll-view class="tab-scroll" :scroll-x="true" :enable-flex="true" show-scrollbar="false" @scroll="handleTabScroll">
+      <scroll-view class="tab-scroll" :scroll-x="true" :enable-flex="true" show-scrollbar="false">
         <view class="tab-row">
           <view
             v-for="(tab, index) in tabs"
             :key="tab.filter"
             class="tab-pill"
             :class="{ 'tab-pill-active': activeTab === index }"
+            hover-class="is-pressed"
+            hover-stay-time="80"
             @click="activeTab = index"
           >
             {{ tab.label }}
           </view>
         </view>
       </scroll-view>
-      <view class="tab-indicator-track">
-        <view class="tab-indicator-thumb" :style="indicatorStyle"></view>
-      </view>
 
       <view class="card-list">
-        <view class="idea-card" v-for="card in currentCards" :key="card.title" @click="usePrompt(card.prompt)">
-          <view class="idea-icon-wrap">
+        <view
+          class="idea-card"
+          :class="{ 'idea-card-featured': index < 2 }"
+          v-for="(card, index) in currentCards"
+          :key="card.title"
+          hover-class="is-pressed"
+          hover-stay-time="80"
+          @click="usePrompt(card.prompt)"
+        >
+          <view class="idea-icon-wrap" :class="{ 'idea-icon-wrap-featured': index < 2 }">
             <text class="idea-icon">{{ card.icon }}</text>
           </view>
           <view class="idea-copy">
@@ -51,13 +66,8 @@
 
 <script setup>
 import { computed, ref } from 'vue';
-import { onReady } from '@dcloudio/uni-app';
 
 const activeTab = ref(0);
-const tabMaxScrollLeft = ref(0);
-const indicatorOffset = ref(0);
-const indicatorWidth = ref(68);
-const indicatorTrackWidth = ref(128);
 
 const tabs = [
   { label: '全部', filter: 'all' },
@@ -69,11 +79,11 @@ const tabs = [
 
 const allCards = [
   { icon: '</>', title: '代码助手', desc: 'AI 编程辅助', cat: 'code', prompt: '用 Python 写一个快速排序算法，附详细注释' },
-  { icon: '◌', title: 'AI 绘画', desc: '文字生成图片', cat: 'art', prompt: '画一幅日落时分的海边灯塔，油画风格，暖色调' },
+  { icon: '✦', title: 'AI 绘画', desc: '文字生成图片', cat: 'art', prompt: '画一幅日落时分的海边灯塔，油画风格，暖色调' },
   { icon: '▤', title: '作文批改', desc: '逐段点评', cat: 'study', prompt: '请帮我批改以下作文，逐段点评并给出改进建议' },
   { icon: '✈', title: '旅行规划', desc: '定制行程', cat: 'life', prompt: '帮我规划一个 5 天 4 晚的旅行攻略，包含美食和景点' },
-  { icon: '▦', title: 'Excel 公式', desc: '一句话搞定', cat: 'code', prompt: '我需要一个 Excel 公式来查找重复值并统计出现次数' },
-  { icon: '∑', title: '数学解题', desc: '详细推导', cat: 'study', prompt: '请详细解答：求不定积分 ∫x²·e^x dx' },
+  { icon: '∑', title: 'Excel 公式', desc: '一句话搞定', cat: 'code', prompt: '我需要一个 Excel 公式来查找重复值并统计出现次数' },
+  { icon: '√', title: '数学解题', desc: '详细推导', cat: 'study', prompt: '请详细解答：求不定积分 ∫x²·e^x dx' },
   { icon: '⌕', title: '热点速递', desc: '联网搜索', cat: 'life', prompt: '搜索今天最重要的 5 条新闻，每条用一句话总结' },
   { icon: '⌂', title: '室内设计', desc: 'AI 效果图', cat: 'art', prompt: '画一张现代简约风格的客厅效果图，大落地窗，自然光照' },
 ];
@@ -83,59 +93,6 @@ const currentCards = computed(() => {
   return filter === 'all' ? allCards : allCards.filter((card) => card.cat === filter);
 });
 
-const indicatorStyle = computed(() => ({
-  width: `${indicatorWidth.value}px`,
-  transform: `translateX(${indicatorOffset.value}px)`,
-}));
-
-const syncIndicator = (scrollLeft = 0) => {
-  const maxOffset = Math.max(indicatorTrackWidth.value - indicatorWidth.value, 0);
-  if (tabMaxScrollLeft.value <= 0) {
-    indicatorOffset.value = 0;
-    return;
-  }
-  const ratio = Math.min(Math.max(scrollLeft / tabMaxScrollLeft.value, 0), 1);
-  indicatorOffset.value = ratio * maxOffset;
-};
-
-const measureTabMetrics = () => {
-  const query = uni.createSelectorQuery();
-  query.select('.tab-scroll').boundingClientRect();
-  query.select('.tab-indicator-track').boundingClientRect();
-  query.selectAll('.tab-pill').boundingClientRect();
-  query.exec((res) => {
-    const scrollRect = res?.[0];
-    const trackRect = res?.[1];
-    const pillRects = res?.[2] || [];
-    if (!scrollRect || pillRects.length === 0) return;
-
-    indicatorTrackWidth.value = trackRect?.width || scrollRect.width;
-
-    const gap = 8;
-    const rightPadding = 14;
-    const contentWidth =
-      pillRects.reduce((sum, rect) => sum + rect.width, 0) +
-      gap * Math.max(pillRects.length - 1, 0) +
-      rightPadding;
-
-    tabMaxScrollLeft.value = Math.max(contentWidth - scrollRect.width, 0);
-
-    if (contentWidth <= scrollRect.width) {
-      indicatorWidth.value = 68;
-      indicatorOffset.value = 0;
-      return;
-    }
-
-    const rawWidth = (scrollRect.width / contentWidth) * indicatorTrackWidth.value;
-    indicatorWidth.value = Math.max(64, Math.min(rawWidth, 74));
-    syncIndicator(0);
-  });
-};
-
-const handleTabScroll = (event) => {
-  syncIndicator(event?.detail?.scrollLeft || 0);
-};
-
 const usePrompt = (text) => {
   uni.setStorageSync('pending_prompt', text);
   uni.switchTab({ url: '/pages/index/index' });
@@ -144,95 +101,161 @@ const usePrompt = (text) => {
 const goChat = () => {
   uni.switchTab({ url: '/pages/index/index' });
 };
-
-onReady(() => {
-  measureTabMetrics();
-});
 </script>
 
 <style scoped>
 .discover-page {
   position: fixed;
   inset: 0;
-  background: #fff;
+  background:
+    radial-gradient(circle at top left, rgba(224, 231, 255, 0.72), transparent 24%),
+    linear-gradient(180deg, #f9fbff 0%, var(--color-page) 22%, var(--color-page) 100%);
   display: flex;
   flex-direction: column;
   padding-bottom: calc(56px + var(--safe-area-bottom, 0px));
 }
 
 .topbar {
-  height: calc(60px + var(--safe-area-top, 0px));
-  padding: calc(8px + var(--safe-area-top, 0px)) 14px 0;
+  height: calc(72px + var(--safe-area-top, 0px));
+  padding: calc(12px + var(--safe-area-top, 0px)) var(--space-16) 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  border-bottom: 1px solid #eceff4;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid rgba(224, 231, 255, 0.7);
+  backdrop-filter: blur(18px);
   flex-shrink: 0;
 }
 
 .menu-btn,
 .topbar-placeholder {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .menu-btn {
+  background: rgba(224, 231, 255, 0.42);
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-4);
+  transition: transform var(--motion-fast), opacity var(--motion-fast), background-color var(--motion-base);
+}
+
+.menu-btn:active {
+  background: rgba(224, 231, 255, 0.82);
 }
 
 .menu-line {
-  width: 15px;
+  width: 16px;
   height: 2px;
-  border-radius: 2px;
-  background: #61697b;
+  border-radius: 999px;
+  background: var(--color-text-secondary);
 }
 
 .topbar-title {
   font-size: 17px;
+  line-height: 24px;
   font-weight: 600;
-  color: #202634;
+  color: var(--color-text-primary);
 }
 
 .discover-scroll {
   flex: 1;
   min-height: 0;
-  padding: 16px 14px 24px;
-  background: #fff;
+  padding: var(--space-16) var(--space-16) calc(var(--space-24) + var(--safe-area-bottom, 0px));
 }
 
 .hero-card {
-  min-height: 100px;
-  padding: 24px 22px 20px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
-  box-shadow: none;
+  position: relative;
+  overflow: hidden;
+  min-height: 144px;
+  padding: var(--space-24);
+  border-radius: var(--radius-lg);
+  background: var(--color-primary-gradient);
+  box-shadow: var(--shadow-raised);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.hero-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 70%;
 }
 
 .hero-title {
   display: block;
-  color: #fff;
-  font-size: 18px;
+  color: var(--color-text-inverse);
+  font-size: 20px;
+  line-height: 28px;
   font-weight: 700;
-  margin-bottom: 8px;
 }
 
 .hero-desc {
   display: block;
-  color: rgba(255, 255, 255, 0.86);
+  margin-top: var(--space-8);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 18px;
+}
+
+.hero-ornament {
+  position: absolute;
+  right: -8px;
+  top: 10px;
+  width: 120px;
+  height: 120px;
+  opacity: 0.9;
+}
+
+.hero-orb {
+  position: absolute;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+.hero-orb-large {
+  right: 18px;
+  top: 4px;
+  width: 80px;
+  height: 80px;
+}
+
+.hero-orb-small {
+  right: 56px;
+  top: 42px;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.hero-line {
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.hero-line-top {
+  right: 8px;
+  top: 34px;
+  width: 76px;
+  height: 1px;
+  transform: rotate(-25deg);
+}
+
+.hero-line-bottom {
+  right: 18px;
+  top: 70px;
+  width: 90px;
+  height: 1px;
+  transform: rotate(18deg);
 }
 
 .tab-scroll {
-  margin-top: 18px;
+  margin: var(--space-16) -16px 0;
   white-space: nowrap;
-  width: 100%;
-  overflow: hidden;
 }
 
 .tab-scroll ::-webkit-scrollbar {
@@ -242,94 +265,76 @@ onReady(() => {
 }
 
 .tab-row {
-  display: inline-block;
-  white-space: nowrap;
-  padding-right: 14px;
+  display: inline-flex;
+  gap: var(--space-8);
+  padding: 0 var(--space-16);
 }
 
 .tab-pill {
-  display: inline-block;
-  height: 34px;
-  padding: 0 18px;
-  margin-right: 8px;
-  border-radius: 999px;
-  border: 1px solid #d8dde7;
-  background: #fff;
-  color: #596275;
-  font-size: 13px;
-  line-height: 34px;
+  min-width: 72px;
+  height: 40px;
+  padding: 0 var(--space-16);
+  border-radius: var(--radius-pill);
+  background: rgba(243, 244, 246, 0.96);
+  color: var(--color-text-secondary);
+  font-size: 15px;
+  line-height: 40px;
   text-align: center;
-  vertical-align: top;
-}
-
-.tab-pill:last-child {
-  margin-right: 0;
+  border: 1px solid transparent;
+  transition: transform var(--motion-fast), opacity var(--motion-fast), background-color var(--motion-base), color var(--motion-base), box-shadow var(--motion-base), border-color var(--motion-base);
 }
 
 .tab-pill-active {
-  border-color: transparent;
-  background: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
-  color: #fff;
-  box-shadow: none;
-}
-
-.tab-indicator-track {
-  width: 100%;
-  height: 5px;
-  border-radius: 999px;
-  background: #d8dde6;
-  margin: 8px 0 0;
-  position: relative;
-  overflow: hidden;
-}
-
-.tab-indicator-thumb {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 48px;
-  height: 100%;
-  border-radius: 999px;
-  background: #b8bec9;
-  transition: transform 0.05s linear, width 0.2s ease;
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  box-shadow: var(--shadow-card);
 }
 
 .card-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 16px;
-  padding-bottom: 12px;
+  gap: var(--space-16);
+  margin-top: var(--space-16);
+  padding-bottom: var(--space-8);
 }
 
 .idea-card {
   display: flex;
   align-items: center;
-  gap: 14px;
-  min-height: 74px;
-  padding: 16px 16px;
-  background: #fff;
-  border: 1px solid #dfe4ee;
-  border-radius: 15px;
-  box-shadow: none;
+  gap: var(--space-12);
+  min-height: 88px;
+  padding: var(--space-16);
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  transition: transform var(--motion-fast), opacity var(--motion-fast), box-shadow var(--motion-base), background-color var(--motion-base);
+}
+
+.idea-card-featured {
+  border: 1px solid var(--color-primary-soft);
+  box-shadow: var(--shadow-raised);
 }
 
 .idea-icon-wrap {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  background: #fff;
-  border: 1px solid #f2f4f8;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: rgba(79, 70, 229, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
+.idea-icon-wrap-featured {
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.16) 0%, rgba(129, 140, 248, 0.28) 100%);
+}
+
 .idea-icon {
-  color: #6670e8;
-  font-size: 15px;
-  font-weight: 600;
+  color: var(--color-primary);
+  font-size: 20px;
+  font-weight: 700;
 }
 
 .idea-copy {
@@ -339,22 +344,33 @@ onReady(() => {
 
 .idea-title {
   display: block;
-  font-size: 15px;
+  font-size: 17px;
+  line-height: 24px;
   font-weight: 600;
-  color: #232939;
-  margin-bottom: 3px;
+  color: var(--color-text-primary);
 }
 
 .idea-desc {
   display: block;
-  font-size: 12px;
-  color: #9ca4b2;
+  margin-top: var(--space-4);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-text-tertiary);
 }
 
 .idea-arrow {
-  color: #aab1be;
-  font-size: 20px;
+  color: var(--color-border);
+  font-size: 18px;
   line-height: 1;
-  margin-top: -1px;
+  transition: color var(--motion-base);
+}
+
+.idea-card:active {
+  box-shadow: var(--shadow-raised);
+}
+
+.idea-card:active .idea-arrow,
+.idea-card-featured .idea-arrow {
+  color: var(--color-primary);
 }
 </style>

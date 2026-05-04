@@ -1,7 +1,7 @@
 <template>
   <view class="profile-page">
     <view class="topbar">
-      <view class="menu-btn" @click="goChat">
+      <view class="menu-btn" hover-class="is-pressed" hover-stay-time="80" @click="goChat">
         <view class="menu-line"></view>
         <view class="menu-line"></view>
         <view class="menu-line"></view>
@@ -20,20 +20,25 @@
       </view>
 
       <view class="balance-card">
-        <view class="balance-column">
+        <view class="balance-copy">
           <text class="balance-value">{{ balance }}</text>
           <text class="balance-label">算力余额</text>
         </view>
-        <view class="balance-divider"></view>
-        <view class="balance-column" @click="handleSign">
-          <view class="sign-pill" :class="{ 'sign-pill-disabled': hasSignedToday }">
-            {{ hasSignedToday ? '今日已签' : '签到领取' }}
+        <view class="balance-action">
+          <view
+            class="sign-pill"
+            :class="hasSignedToday ? 'sign-pill-active' : 'sign-pill-pending'"
+            hover-class="is-pressed"
+            hover-stay-time="80"
+            @click="handleSign"
+          >
+            {{ hasSignedToday ? '今日已签' : '去签到' }}
           </view>
-          <text class="balance-label">每日福利</text>
+          <text class="balance-action-label">每日福利</text>
         </view>
       </view>
 
-      <view class="section-card compact-card" @click="showBalanceLogs = !showBalanceLogs">
+      <view class="section-card compact-card" hover-class="row-pressed" hover-stay-time="80" @click="showBalanceLogs = !showBalanceLogs">
         <view class="single-row">
           <view class="row-left">
             <text class="row-icon accent">⌁</text>
@@ -53,49 +58,49 @@
         </view>
       </view>
 
-      <view class="section-card settings-card">
-        <text class="settings-title">设置</text>
-        <view class="setting-row" @click="goPrivacyPolicy">
+      <view class="settings-card">
+        <view class="setting-row" hover-class="row-pressed" hover-stay-time="80" @click="goPrivacyPolicy">
           <view class="row-left">
             <text class="row-icon">⌂</text>
             <text class="row-label">隐私政策</text>
           </view>
           <text class="row-arrow">›</text>
         </view>
-        <view class="setting-row" @click="goAccountDeletion">
+        <view class="setting-row" hover-class="row-pressed" hover-stay-time="80" @click="goAccountDeletion">
           <view class="row-left">
             <text class="row-icon">▤</text>
             <text class="row-label">注销说明</text>
           </view>
           <text class="row-arrow">›</text>
         </view>
-        <view class="setting-row" @click="goSupportLink">
+        <view class="setting-row" hover-class="row-pressed" hover-stay-time="80" @click="goSupportLink">
           <view class="row-left">
             <text class="row-icon">?</text>
             <text class="row-label">支持链接</text>
           </view>
           <text class="row-arrow">›</text>
         </view>
-        <view class="setting-row" @click="toggleDarkMode">
+        <view class="setting-row setting-row-switch">
           <view class="row-left">
             <text class="row-icon">◌</text>
             <text class="row-label">深色模式</text>
           </view>
-          <text class="row-state">{{ isDark ? '开' : '关' }}</text>
+          <switch class="mode-switch" :checked="isDark" color="#4F46E5" @change.stop="toggleDarkMode" />
         </view>
       </view>
 
-      <view class="action-card danger-card" @click="handleDeleteAccount">
-        <view class="row-left">
-          <text class="row-icon danger-text">⊟</text>
-          <text class="row-label danger-text">删除账号</text>
+      <view class="danger-card">
+        <view class="action-row" hover-class="row-pressed" hover-stay-time="80" @click="handleDeleteAccount">
+          <view class="row-left">
+            <text class="row-icon danger-text">⊟</text>
+            <text class="row-label danger-text">删除账号</text>
+          </view>
         </view>
-      </view>
-
-      <view class="action-card" @click="handleLogout">
-        <view class="row-left">
-          <text class="row-icon">⇥</text>
-          <text class="row-label">退出登录</text>
+        <view class="action-row" hover-class="row-pressed" hover-stay-time="80" @click="handleLogout">
+          <view class="row-left">
+            <text class="row-icon danger-text">⇥</text>
+            <text class="row-label danger-text">退出登录</text>
+          </view>
         </view>
       </view>
     </scroll-view>
@@ -119,6 +124,25 @@ const showBalanceLogs = ref(false);
 const balanceLogs = ref([]);
 
 const displayName = computed(() => nickname.value || username.value || 'User');
+
+const applyDarkMode = (enabled) => {
+  isDark.value = enabled;
+  if (typeof document === 'undefined') {
+    if (enabled) {
+      uni.setStorageSync('dark_mode', true);
+    } else {
+      uni.removeStorageSync('dark_mode');
+    }
+    return;
+  }
+  if (enabled) {
+    document.documentElement.classList.add('dark');
+    uni.setStorageSync('dark_mode', true);
+  } else {
+    document.documentElement.classList.remove('dark');
+    uni.removeStorageSync('dark_mode');
+  }
+};
 
 const fetchUserInfo = async () => {
   if (!userId.value) return;
@@ -159,23 +183,9 @@ const handleSign = async () => {
   }
 };
 
-const toggleDarkMode = () => {
-  isDark.value = !isDark.value;
-  if (typeof document === 'undefined') {
-    if (isDark.value) {
-      uni.setStorageSync('dark_mode', true);
-    } else {
-      uni.removeStorageSync('dark_mode');
-    }
-    return;
-  }
-  if (isDark.value) {
-    document.documentElement.classList.add('dark');
-    uni.setStorageSync('dark_mode', true);
-  } else {
-    document.documentElement.classList.remove('dark');
-    uni.removeStorageSync('dark_mode');
-  }
+const toggleDarkMode = (event) => {
+  const enabled = typeof event?.detail?.value === 'boolean' ? event.detail.value : !isDark.value;
+  applyDarkMode(enabled);
 };
 
 const goPrivacyPolicy = () => openExternalUrl(PRIVACY_POLICY_URL);
@@ -186,7 +196,7 @@ const handleDeleteAccount = () => {
   uni.showModal({
     title: '删除账号',
     content: '删除后将清空聊天记录、余额记录和登录态，且无法恢复。确认继续？',
-    confirmColor: '#fa6a67',
+    confirmColor: '#EF4444',
     success: async (res) => {
       if (!res.confirm) return;
       try {
@@ -210,6 +220,7 @@ const handleLogout = () => {
   uni.showModal({
     title: '退出登录',
     content: '确认退出？',
+    confirmColor: '#EF4444',
     success: async (res) => {
       if (!res.confirm) return;
       try {
@@ -232,6 +243,7 @@ onShow(() => {
     redirectToLogin('请先登录');
     return;
   }
+  applyDarkMode(!!uni.getStorageSync('dark_mode'));
   fetchUserInfo();
   fetchBalanceLogs();
 });
@@ -241,75 +253,89 @@ onShow(() => {
 .profile-page {
   min-height: 100vh;
   height: 100vh;
-  background: var(--bg-page);
+  background:
+    radial-gradient(circle at top left, rgba(224, 231, 255, 0.72), transparent 22%),
+    linear-gradient(180deg, #f9fbff 0%, var(--color-page) 24%, var(--color-page) 100%);
   display: flex;
   flex-direction: column;
   padding-bottom: calc(56px + var(--safe-area-bottom, 0px));
 }
 
 .topbar {
-  height: calc(60px + var(--safe-area-top, 0px));
-  padding: calc(8px + var(--safe-area-top, 0px)) 14px 0;
+  height: calc(72px + var(--safe-area-top, 0px));
+  padding: calc(12px + var(--safe-area-top, 0px)) var(--space-16) 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  border-bottom: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid rgba(224, 231, 255, 0.7);
+  backdrop-filter: blur(18px);
   flex-shrink: 0;
 }
 
 .menu-btn,
 .topbar-placeholder {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .menu-btn {
+  background: rgba(224, 231, 255, 0.42);
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-4);
+  transition: transform var(--motion-fast), opacity var(--motion-fast), background-color var(--motion-base);
+}
+
+.menu-btn:active {
+  background: rgba(224, 231, 255, 0.82);
 }
 
 .menu-line {
-  width: 15px;
+  width: 16px;
   height: 2px;
-  border-radius: 2px;
-  background: #61697b;
+  border-radius: 999px;
+  background: var(--color-text-secondary);
 }
 
 .topbar-title {
-  font-size: 18px;
+  font-size: 17px;
+  line-height: 24px;
   font-weight: 600;
-  color: #1f2430;
+  color: var(--color-text-primary);
 }
 
 .profile-scroll {
   flex: 1;
   min-height: 0;
-  padding-bottom: calc(20px + var(--safe-area-bottom, 0px));
+  padding-bottom: calc(var(--space-24) + var(--safe-area-bottom, 0px));
 }
 
 .profile-hero {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 24px 18px 60px;
-  background: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
+  gap: var(--space-16);
+  padding: var(--space-24) var(--space-16) 72px;
+  background: var(--color-primary-gradient);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow-raised);
 }
 
 .hero-avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
-  font-size: 28px;
-  font-weight: 600;
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--color-text-inverse);
+  font-size: 24px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .hero-copy {
@@ -318,198 +344,210 @@ onShow(() => {
 
 .hero-name {
   display: block;
-  color: #fff;
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 6px;
+  color: var(--color-text-inverse);
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 600;
 }
 
 .hero-tag {
   display: block;
-  color: rgba(255, 255, 255, 0.82);
+  margin-top: var(--space-4);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 13px;
+  line-height: 18px;
 }
 
 .balance-card {
-  margin: -28px 18px 18px;
-  background: #fff;
-  border-radius: 18px;
-  border: 1px solid #dfe4ee;
-  box-shadow: none;
+  margin: -16px var(--space-16) var(--space-16);
+  padding: var(--space-16);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
   display: flex;
   align-items: center;
-  padding: 18px 12px;
+  justify-content: space-between;
+  gap: var(--space-16);
 }
 
-.balance-column {
-  flex: 1;
+.balance-copy,
+.balance-action {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
+}
+
+.balance-copy {
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.balance-action {
+  align-items: flex-end;
+  gap: var(--space-8);
 }
 
 .balance-value {
-  font-size: 20px;
-  line-height: 1;
-  color: #222939;
+  font-size: 24px;
+  line-height: 28px;
+  color: var(--color-text-primary);
   font-weight: 700;
 }
 
-.balance-label {
+.balance-label,
+.balance-action-label {
   font-size: 13px;
-  color: #9aa3b3;
-}
-
-.balance-divider {
-  width: 1px;
-  height: 34px;
-  background: #eceff4;
+  line-height: 18px;
+  color: var(--color-text-tertiary);
 }
 
 .sign-pill {
-  min-width: 96px;
-  height: 34px;
-  padding: 0 16px;
-  border-radius: 999px;
-  border: 1px solid #d8dde7;
-  background: #fff;
-  color: #5f6779;
+  min-width: 92px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  line-height: 18px;
+  font-weight: 600;
+  text-align: center;
+  transition: transform var(--motion-fast), opacity var(--motion-fast), background-color var(--motion-base), color var(--motion-base);
 }
 
-.sign-pill-disabled {
-  color: #5f6779;
+.sign-pill-active {
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.sign-pill-pending {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
 }
 
 .section-card,
-.action-card {
-  margin: 14px 18px 0;
-  background: #fff;
-  border: 1px solid #dfe4ee;
-  border-radius: 16px;
-  box-shadow: none;
+.settings-card,
+.danger-card {
+  margin: 0 var(--space-16) var(--space-16);
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.86);
 }
 
 .compact-card {
-  padding: 0 16px;
+  padding: 0 var(--space-16);
 }
 
 .logs-card {
-  padding: 8px 16px;
-}
-
-.settings-card {
-  overflow: hidden;
-}
-
-.settings-title {
-  display: block;
-  padding: 16px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #232939;
-  border-bottom: 1px solid #eceff4;
+  padding: 0 var(--space-16);
 }
 
 .single-row,
 .setting-row,
-.action-card {
-  min-height: 52px;
+.action-row {
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  transition: background-color var(--motion-fast);
 }
 
-.setting-row {
-  padding: 0 16px;
-  border-bottom: 1px solid #eceff4;
+.setting-row,
+.action-row,
+.log-item {
+  border-bottom: 1px solid var(--color-divider);
 }
 
-.setting-row:last-child {
+.setting-row:last-child,
+.action-row:last-child,
+.log-item:last-child {
   border-bottom: none;
-}
-
-.action-card {
-  padding: 0 16px;
 }
 
 .row-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-12);
+  min-width: 0;
 }
 
 .row-icon {
   width: 20px;
-  text-align: center;
-  color: #9aa3b3;
+  color: var(--color-text-tertiary);
   font-size: 17px;
-  font-weight: 500;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .accent {
-  color: #6670e8;
+  color: var(--color-primary);
 }
 
 .row-label {
   font-size: 15px;
-  color: #232939;
+  line-height: 22px;
+  color: var(--color-text-secondary);
 }
 
-.row-arrow,
-.row-state {
+.row-arrow {
+  color: var(--color-border);
   font-size: 16px;
-  color: #a3acbb;
 }
 
-.danger-card {
-  margin-top: 16px;
+.setting-row {
+  padding: 0 var(--space-16);
+}
+
+.setting-row-switch {
+  padding-right: 10px;
+}
+
+.mode-switch {
+  transform: scale(0.8);
+  transform-origin: right center;
 }
 
 .danger-text {
-  color: #fa6a67;
+  color: var(--color-danger);
+}
+
+.row-pressed {
+  background: var(--color-surface-muted);
+}
+
+.action-row {
+  padding: 0 var(--space-16);
 }
 
 .log-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px solid #eceff4;
-}
-
-.log-item:last-child {
-  border-bottom: none;
+  padding: 12px 0;
 }
 
 .log-reason {
   flex: 1;
-  font-size: 14px;
-  color: #232939;
-  padding-right: 14px;
+  padding-right: var(--space-16);
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--color-text-secondary);
 }
 
 .log-amount {
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 22px;
   font-weight: 600;
 }
 
 .amount-plus {
-  color: #27c93f;
+  color: var(--color-success);
 }
 
 .amount-minus {
-  color: #fa6a67;
+  color: var(--color-danger);
 }
 
 .empty-text {
+  padding: var(--space-16) 0;
   text-align: center;
-  color: #9aa3b3;
+  color: var(--color-text-tertiary);
   font-size: 13px;
-  padding: 12px 0;
+  line-height: 18px;
 }
 </style>

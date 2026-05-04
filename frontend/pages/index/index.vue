@@ -1,113 +1,138 @@
 <template>
   <view class="chat-page">
-    <view class="sidebar-mask" v-if="showSidebar" @click="showSidebar = false"></view>
-
-    <view class="sidebar" :class="{ 'sidebar-open': showSidebar }">
-      <view class="sidebar-header">
-        <text class="sidebar-title">历史会话</text>
-        <view class="sidebar-new-btn" @click="createConversation">+ 新对话</view>
-      </view>
-      <view class="sidebar-search">
-        <input class="sidebar-search-input" type="text" v-model="searchKeyword" placeholder="搜索会话..." />
-      </view>
-      <scroll-view class="sidebar-list" scroll-y>
-        <view
-          class="sidebar-item"
-          v-for="conv in filteredConversations"
-          :key="conv.id"
-          :class="{ 'sidebar-item-active': conv.id === currentConvId }"
-          @click="switchConversation(conv.id)"
-        >
-          <view class="sidebar-copy">
-            <text class="sidebar-item-title">{{ conv.title }}</text>
-            <text class="sidebar-item-date">{{ conv.created_at }}</text>
-          </view>
-          <view class="sidebar-actions">
-            <text class="sidebar-action" @click.stop="togglePin(conv.id)">{{ conv.pinned ? '📌' : '📍' }}</text>
-            <text class="sidebar-action sidebar-action-delete" @click.stop="deleteConversation(conv.id)">✕</text>
-          </view>
-        </view>
-      </scroll-view>
-    </view>
-
     <view class="topbar">
-      <view class="menu-btn" @click="showSidebar = !showSidebar">
+      <view class="menu-btn" hover-class="is-pressed" hover-stay-time="80" @click="openConversationMenu">
         <view class="menu-line"></view>
         <view class="menu-line"></view>
         <view class="menu-line"></view>
       </view>
-      <view class="header-copy" @click="showModelPicker = !showModelPicker">
-        <text class="header-title">AI Chat</text>
-        <text class="header-subtitle">{{ currentModelLabel }}</text>
+      <view class="title-wrap">
+        <text class="topbar-title">AI Chat</text>
+        <text class="topbar-subtitle">Doubao</text>
       </view>
-      <view class="balance-pill" @click="goProfile">
+      <view class="balance-pill">
         <text class="balance-icon">⚡</text>
-        <text class="balance-value">{{ headerBalance }}</text>
+        <text class="balance-value">{{ balance }}</text>
       </view>
     </view>
 
-    <view class="model-sheet" v-if="showModelPicker">
-      <view
-        class="model-row"
-        v-for="m in modelOptions"
-        :key="m.id"
-        :class="{ 'model-row-active': currentModel === m.id }"
-        @click="switchModel(m.id)"
-      >
-        <text class="model-icon">{{ m.icon }}</text>
-        <view class="model-copy">
-          <text class="model-name">{{ m.name }}</text>
-          <text class="model-desc">{{ m.desc }}</text>
+    <scroll-view class="conversation-scroll" :scroll-x="true" :enable-flex="true" show-scrollbar="false">
+      <view class="conversation-row">
+        <view class="conversation-chip conversation-chip-new" hover-class="is-pressed" hover-stay-time="80" @click="startNewConversation">
+          <text class="conversation-chip-plus">+</text>
+          <text>新对话</text>
         </view>
-        <text class="model-check" v-if="currentModel === m.id">✓</text>
-      </view>
-    </view>
-
-    <scroll-view class="message-scroll" scroll-y :scroll-top="scrollTop" scroll-with-animation @click="closeMenu">
-      <view class="message-stack">
         <view
-          class="message-row"
-          v-for="(msg, index) in messages"
-          :key="index"
-          :class="msg.role === 'user' ? 'message-row-user' : 'message-row-ai'"
-          v-show="msg.role !== 'system'"
+          v-for="item in conversations"
+          :key="item.id"
+          class="conversation-chip"
+          :class="{ 'conversation-chip-active': activeConversationId === item.id }"
+          hover-class="is-pressed"
+          hover-stay-time="80"
+          @click="selectConversation(item.id)"
         >
-          <view class="message-avatar" v-if="msg.role === 'ai'">AI</view>
-          <view class="message-bubble-wrap">
-            <view class="message-bubble" :class="msg.role === 'user' ? 'message-bubble-user' : 'message-bubble-ai'" @longpress="onLongPress(index, msg)">
-              <image v-if="msg.image && msg.role === 'user'" :src="msg.image" class="chat-img" mode="widthFix" />
-              <image v-if="msg.aiImage" :src="msg.aiImage" class="chat-img" mode="widthFix" />
-              <video v-if="msg.video" :src="msg.video" controls class="chat-video"></video>
-              <view v-if="msg.role === 'ai' && !msg.content && isLoading" class="typing-indicator">
-                <view class="dot"></view>
-                <view class="dot"></view>
-                <view class="dot"></view>
-              </view>
-              <rich-text v-if="msg.content" :nodes="renderMarkdown(msg.content)"></rich-text>
-            </view>
-            <view class="longpress-menu" v-if="menuIndex === index" @click.stop>
-              <view class="menu-opt" @click="copyText(msg.content); closeMenu();">复制</view>
-              <view class="menu-opt" v-if="msg.role === 'ai'" @click="reportMessage(msg); closeMenu();">举报</view>
-              <view class="menu-opt menu-danger" @click="deleteMsg(index)">删除</view>
-            </view>
-          </view>
+          <text class="conversation-chip-text">{{ item.title || '新对话' }}</text>
         </view>
       </view>
     </scroll-view>
 
-    <view class="input-panel">
-      <view class="input-shell">
-        <input class="chat-input" type="text" v-model="inputText" placeholder="输入消息..." @confirm="sendMessage" />
-        <view class="input-actions">
-          <button class="image-btn" @click="chooseImage">＋</button>
-          <view class="send-btn" @click="sendMessage" :class="{ 'send-btn-disabled': isLoading }">
-            <text class="send-icon">➤</text>
+    <scroll-view class="message-scroll" scroll-y :scroll-into-view="scrollAnchor" show-scrollbar="false">
+      <view v-if="messages.length === 0" class="empty-state">
+        <view class="empty-mark">AI</view>
+        <text class="empty-title">从一个清晰的问题开始</text>
+        <text class="empty-desc">可以直接输入，也可以点下面的灵感提示，快速体验对话、绘图和搜索能力。</text>
+        <view class="empty-prompt-grid">
+          <view
+            v-for="prompt in starterPrompts"
+            :key="prompt"
+            class="empty-prompt-card"
+            hover-class="is-pressed"
+            hover-stay-time="80"
+            @click="sendPreparedPrompt(prompt)"
+          >
+            {{ prompt }}
           </view>
         </view>
       </view>
-      <view class="image-preview" v-if="selectedImagePreview">
-        <image :src="selectedImagePreview" mode="aspectFill" class="preview-img" />
-        <view class="remove-img-btn" @click="removeImage">×</view>
+
+      <view
+        v-for="message in messages"
+        :id="`message-${message.id}`"
+        :key="message.id"
+        class="message-row"
+        :class="message.role === 'user' ? 'message-row-user' : 'message-row-ai'"
+      >
+        <view v-if="message.role === 'assistant'" class="ai-badge">AI</view>
+
+        <view class="message-stack">
+          <view
+            class="message-bubble"
+            :class="message.role === 'user' ? 'message-bubble-user' : 'message-bubble-ai'"
+          >
+            <image v-if="message.imageUrl" class="bubble-image" :src="message.imageUrl" mode="widthFix" />
+            <image v-if="message.mediaType === 'image'" class="bubble-image" :src="message.mediaUrl" mode="widthFix" />
+            <video v-if="message.mediaType === 'video'" class="bubble-video" :src="message.mediaUrl" controls></video>
+            <text v-if="message.role === 'user' && message.text" class="bubble-text bubble-text-user">{{ message.text }}</text>
+            <rich-text v-else-if="message.html" class="bubble-rich-text" :nodes="message.html"></rich-text>
+            <text v-else-if="message.text" class="bubble-text">{{ message.text }}</text>
+          </view>
+
+          <view v-if="message.suggestions.length" class="bubble-suggestion-row">
+            <view
+              v-for="suggestion in message.suggestions"
+              :key="suggestion"
+              class="bubble-suggestion"
+              hover-class="is-pressed"
+              hover-stay-time="80"
+              @click="sendPreparedPrompt(suggestion)"
+            >
+              {{ suggestion }}
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view id="chat-bottom" class="chat-bottom-anchor"></view>
+    </scroll-view>
+
+    <view class="composer-shell">
+      <view v-if="attachment" class="attachment-preview">
+        <image class="attachment-preview-image" :src="attachment.preview" mode="aspectFill" />
+        <text class="attachment-preview-name">已添加图片</text>
+        <view class="attachment-remove" hover-class="is-pressed" hover-stay-time="80" @click="clearAttachment">×</view>
+      </view>
+
+      <view class="composer-row">
+        <view class="composer-action" hover-class="is-pressed" hover-stay-time="80" @click="chooseAttachment">+</view>
+
+        <view class="composer-input-wrap" :class="{ 'composer-input-focus': inputFocused }">
+          <textarea
+            v-model="draft"
+            class="composer-input"
+            auto-height
+            :maxlength="-1"
+            confirm-type="send"
+            placeholder="输入消息..."
+            placeholder-class="composer-placeholder"
+            @focus="inputFocused = true"
+            @blur="inputFocused = false"
+            @confirm="sendMessage"
+          />
+        </view>
+
+        <view
+          class="send-btn"
+          :class="{ 'send-btn-disabled': !canSend || isSending }"
+          hover-class="is-pressed"
+          hover-stay-time="80"
+          @click="sendMessage"
+        >
+          <text v-if="isSending" class="send-btn-loading">…</text>
+          <view v-else class="send-icon" aria-hidden="true">
+            <view class="send-icon-plane"></view>
+            <view class="send-icon-tail"></view>
+          </view>
+        </view>
       </view>
     </view>
   </view>
@@ -115,804 +140,860 @@
 
 <script setup>
 import { computed, nextTick, ref } from 'vue';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { onShow } from '@dcloudio/uni-app';
 import { API_BASE } from '../../config.js';
-import { ensureLoggedIn, getAuthHeaders, redirectToLogin, requestWithAuth } from '../../utils/auth.js';
-import { renderMarkdown as renderMarkdownHtml } from '../../utils/markdown.js';
+import { ensureLoggedIn, redirectToLogin, requestWithAuth } from '../../utils/auth.js';
+import { renderMarkdown } from '../../utils/markdown.js';
 
-const inputText = ref('');
-const isLoading = ref(false);
-const scrollTop = ref(0);
-const userId = ref(null);
-const selectedImagePreview = ref('');
-const selectedImageBase64 = ref(null);
-const showSidebar = ref(false);
-const conversations = ref([]);
-const currentConvId = ref(0);
-const searchKeyword = ref('');
-const menuIndex = ref(-1);
-const headerBalance = ref(0);
-const showModelPicker = ref(false);
-const currentModel = ref('doubao');
-
-const modelOptions = [
-  // Hold for a later release after review:
-  // { id: 'deepseek', icon: '🧠', name: 'DeepSeek', desc: '强推理、写代码' },
-  // { id: 'qwen', icon: '🌟', name: 'Qwen-Max', desc: '通义千问，均衡全能' }, // 这个是我的阿里云百炼，太耗钱了，不要打开。
-  { id: 'doubao', icon: '🚀', name: 'Doubao', desc: '火山引擎，响应更快' },
-  { id: 'gemini', icon: '✦', name: 'Gemini', desc: 'Google 模型，综合能力强' },
+const starterPrompts = [
+  '帮我整理今天最重要的 5 条新闻，并解释为什么值得关注',
+  '把这段报错信息逐行解释，并给出修复步骤',
+  '规划一个 3 天 2 晚的周末旅行路线，偏轻松和美食',
+  '写一份周报，语气专业但不生硬',
 ];
 
-const currentModelLabel = computed(() => {
-  const current = modelOptions.find((item) => item.id === currentModel.value);
-  return current ? current.name : '';
-});
+const userId = ref(0);
+const balance = ref(0);
+const conversations = ref([]);
+const activeConversationId = ref(0);
+const messages = ref([]);
+const draft = ref('');
+const isSending = ref(false);
+const scrollAnchor = ref('');
+const inputFocused = ref(false);
+const attachment = ref(null);
 
-const filteredConversations = computed(() => {
-  const kw = searchKeyword.value.trim().toLowerCase();
-  if (!kw) return conversations.value;
-  return conversations.value.filter((conv) => conv.title.toLowerCase().includes(kw));
-});
+const canSend = computed(() => Boolean(draft.value.trim() || attachment.value));
 
-const renderMarkdown = (text) => {
-  if (!text) return '';
-  const content = text.replace(/\[IMAGE:[^\]]*$/, '').replace(/\[VIDEO:[^\]]*$/, '').replace(/@@@[\s\S]*?(@@@|$)/g, '');
-  return renderMarkdownHtml(content);
+const normalizeStoredImage = (value = '') => {
+  if (!value) return '';
+  return value.startsWith('data:image') ? value : `data:image/jpeg;base64,${value}`;
 };
 
-const systemPrompt = { role: 'system', content: 'You are AI Assistant.' };
-const welcomeMsg = { role: 'ai', content: '你好！有什么我可以帮助你的吗？' };
-const messages = ref([systemPrompt, { ...welcomeMsg }]);
-
-const scrollToBottom = () => {
-  nextTick(() => {
-    scrollTop.value = scrollTop.value === 99999 ? 99998 : 99999;
-  });
+const extractSuggestions = (content = '') => {
+  const match = String(content).match(/@@@(.+?)@@@/);
+  if (!match) return { text: String(content).trim(), suggestions: [] };
+  const suggestions = match[1]
+    .split('|')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  return {
+    text: String(content).replace(match[0], '').trim(),
+    suggestions,
+  };
 };
 
-const switchModel = (id) => {
-  currentModel.value = id;
-  showModelPicker.value = false;
-  uni.showToast({ title: `已切换：${modelOptions.find((o) => o.id === id).name}`, icon: 'none' });
-};
-
-const onLongPress = (index, msg) => {
-  if (msg.role === 'system' || !msg.content) return;
-  menuIndex.value = index;
-};
-
-const closeMenu = () => {
-  menuIndex.value = -1;
-};
-
-const deleteMsg = (index) => {
-  messages.value.splice(index, 1);
-  closeMenu();
-};
-
-const copyText = (text) => {
-  if (!text) return;
-  uni.setClipboardData({ data: text, success: () => uni.showToast({ title: '已复制', icon: 'success' }) });
-};
-
-const normalizeAIMessage = (item) => {
-  if (!item?.content) return item;
-  const videoMatch = item.content.match(/\[VIDEO:([\s\S]+?)\]/);
-  if (videoMatch) {
-    item.video = videoMatch[1].trim();
-    item.content = item.content.replace(/\[VIDEO:[\s\S]+?\]/g, '').trim();
+const extractMedia = (content = '') => {
+  const match = String(content).match(/\[(IMAGE|VIDEO):([^\]]+)\]/i);
+  if (!match) {
+    return { text: String(content), mediaType: '', mediaUrl: '' };
   }
-  const imageMatch = item.content.match(/\[IMAGE:([\s\S]+?)\]/);
-  if (imageMatch) {
-    item.aiImage = imageMatch[1].trim();
-    item.content = item.content.replace(/\[IMAGE:[\s\S]+?\]/g, '').trim();
-  }
-  item.content = item.content.replace(/@@@[\s\S]*?(@@@|$)/g, '').trim();
-  return item;
+  return {
+    text: String(content).replace(match[0], '').trim(),
+    mediaType: match[1].toLowerCase(),
+    mediaUrl: match[2].trim(),
+  };
 };
 
-const fileToBase64 = (filePath) => new Promise((resolve, reject) => {
-  // #ifdef H5
-  const reader = new FileReader();
-  fetch(filePath)
-    .then((r) => r.blob())
-    .then((blob) => {
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    })
-    .catch(reject);
-  // #endif
-
-  // #ifndef H5
-  const fs = uni.getFileSystemManager();
-  fs.readFile({
-    filePath,
-    encoding: 'base64',
-    success: (res) => resolve(`data:image/jpeg;base64,${res.data}`),
-    fail: reject,
-  });
-  // #endif
-});
-
-const chooseImage = () => {
-  uni.chooseImage({
-    count: 1,
-    sizeType: ['compressed'],
-    success: async (res) => {
-      selectedImagePreview.value = res.tempFilePaths[0];
-      try {
-        selectedImageBase64.value = await fileToBase64(res.tempFilePaths[0]);
-      } catch (e) {
-        selectedImagePreview.value = '';
-        selectedImageBase64.value = null;
-        uni.showToast({ title: '图片读取失败', icon: 'none' });
-      }
-    },
-  });
+const buildMessage = ({ role, content = '', image = '', key }) => {
+  const suggestionResult = extractSuggestions(content);
+  const mediaResult = extractMedia(suggestionResult.text);
+  const plainText = mediaResult.text.trim();
+  return {
+    id: key || `${role}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    role: role === 'assistant' ? 'assistant' : 'user',
+    text: plainText,
+    html: role === 'assistant' && plainText ? renderMarkdown(plainText) : '',
+    imageUrl: normalizeStoredImage(image),
+    mediaType: mediaResult.mediaType,
+    mediaUrl: mediaResult.mediaUrl,
+    suggestions: role === 'assistant' ? suggestionResult.suggestions : [],
+  };
 };
 
-const removeImage = () => {
-  selectedImagePreview.value = '';
-  selectedImageBase64.value = null;
+const scrollToBottom = async () => {
+  scrollAnchor.value = '';
+  await nextTick();
+  scrollAnchor.value = 'chat-bottom';
 };
 
-const fetchBalance = async () => {
+const syncBalance = async () => {
   if (!userId.value) return;
-  try {
-    const res = await requestWithAuth({ url: `${API_BASE}/user/balance/${userId.value}` });
-    if (res.data.code === 200) headerBalance.value = res.data.balance;
-  } catch (e) {}
+  const res = await requestWithAuth({ url: `${API_BASE}/user/info/${userId.value}` });
+  if (res.data?.code === 200) {
+    balance.value = Number(res.data.balance || 0);
+  }
 };
 
-const goProfile = () => {
-  uni.switchTab({ url: '/pages/profile/profile' });
+const syncConversations = async () => {
+  if (!userId.value) return;
+  const res = await requestWithAuth({ url: `${API_BASE}/conversations/${userId.value}` });
+  if (res.data?.code !== 200) return;
+  conversations.value = Array.isArray(res.data.data) ? res.data.data : [];
+  if (!activeConversationId.value && conversations.value.length) {
+    activeConversationId.value = conversations.value[0].id;
+  }
 };
 
-const loadConversations = async () => {
-  try {
-    const res = await requestWithAuth({ url: `${API_BASE}/conversations/${userId.value}` });
-    if (res.data.code === 200) conversations.value = res.data.data;
-  } catch (e) {}
+const loadHistory = async (conversationId) => {
+  if (!userId.value || !conversationId) {
+    messages.value = [];
+    await scrollToBottom();
+    return;
+  }
+  const res = await requestWithAuth({
+    url: `${API_BASE}/history/${userId.value}?conversation_id=${conversationId}&limit=100`,
+  });
+  if (res.data?.code !== 200) return;
+  const rows = Array.isArray(res.data.data) ? res.data.data : [];
+  messages.value = rows.map((item, index) =>
+    buildMessage({
+      role: item.role,
+      content: item.content || '',
+      image: item.image || '',
+      key: `${conversationId}-${index}`,
+    }),
+  );
+  await scrollToBottom();
 };
 
 const createConversation = async () => {
-  try {
-    const res = await requestWithAuth({ url: `${API_BASE}/conversation/create/${userId.value}`, method: 'POST' });
-    if (res.data.code === 200) {
-      currentConvId.value = res.data.conversation_id;
-      messages.value = [systemPrompt, { ...welcomeMsg }];
-      await loadConversations();
-      showSidebar.value = false;
-    }
-  } catch (e) {}
+  const res = await requestWithAuth({
+    url: `${API_BASE}/conversation/create/${userId.value}`,
+    method: 'POST',
+  });
+  const conversationId = Number(res.data?.conversation_id || 0);
+  if (conversationId) {
+    activeConversationId.value = conversationId;
+    await syncConversations();
+  }
+  return conversationId;
 };
 
-const switchConversation = async (convId) => {
-  currentConvId.value = convId;
-  showSidebar.value = false;
-  messages.value = [systemPrompt];
-  await loadHistory();
+const startNewConversation = async () => {
+  activeConversationId.value = 0;
+  messages.value = [];
+  draft.value = '';
+  attachment.value = null;
+  await scrollToBottom();
 };
 
-const togglePin = async (convId) => {
-  try {
-    await requestWithAuth({ url: `${API_BASE}/conversation/pin/${convId}`, method: 'PUT' });
-    await loadConversations();
-  } catch (e) {}
+const selectConversation = async (conversationId) => {
+  if (!conversationId || activeConversationId.value === conversationId) return;
+  activeConversationId.value = conversationId;
+  attachment.value = null;
+  await loadHistory(conversationId);
 };
 
-const deleteConversation = async (convId) => {
+const clearCurrentConversation = async () => {
+  if (!activeConversationId.value) {
+    messages.value = [];
+    return;
+  }
   uni.showModal({
-    title: '删除会话',
-    content: '确认删除？',
-    success: async (res) => {
-      if (!res.confirm) return;
-      await requestWithAuth({ url: `${API_BASE}/conversation/${convId}`, method: 'DELETE' });
-      await loadConversations();
-      if (convId === currentConvId.value) {
-        conversations.value.length > 0 ? await switchConversation(conversations.value[0].id) : await createConversation();
+    title: '清空对话',
+    content: '确认清空当前会话的聊天记录？',
+    confirmColor: '#EF4444',
+    success: async (result) => {
+      if (!result.confirm) return;
+      try {
+        await requestWithAuth({
+          url: `${API_BASE}/clear/${userId.value}?conversation_id=${activeConversationId.value}`,
+          method: 'DELETE',
+        });
+        messages.value = [];
+      } catch (error) {}
+    },
+  });
+};
+
+const openConversationMenu = () => {
+  uni.showActionSheet({
+    itemList: ['新建对话', '刷新会话列表', '清空当前对话'],
+    success: async (result) => {
+      if (result.tapIndex === 0) {
+        await startNewConversation();
+      }
+      if (result.tapIndex === 1) {
+        await syncConversations();
+        if (activeConversationId.value) {
+          await loadHistory(activeConversationId.value);
+        }
+      }
+      if (result.tapIndex === 2) {
+        clearCurrentConversation();
       }
     },
   });
 };
 
-const loadHistory = async () => {
-  try {
-    const res = await requestWithAuth({ url: `${API_BASE}/history/${userId.value}?conversation_id=${currentConvId.value}` });
-    if (res.data.code === 200 && res.data.data.length > 0) {
-      const data = res.data.data.map((item) => {
-        if (item.role === 'assistant') item.role = 'ai';
-        return normalizeAIMessage(item);
-      });
-      messages.value = [systemPrompt, ...data];
-      scrollToBottom();
-    } else {
-      messages.value = [systemPrompt, { ...welcomeMsg }];
+const blobToDataUrl = (blob) =>
+  new Promise((resolve, reject) => {
+    if (typeof FileReader === 'undefined') {
+      reject(new Error('FILE_READER_UNAVAILABLE'));
+      return;
     }
-  } catch (e) {}
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('FILE_READ_FAILED'));
+    reader.readAsDataURL(blob);
+  });
+
+const filePathToDataUrl = async (filePath) => {
+  if (typeof uni.getFileSystemManager === 'function') {
+    return await new Promise((resolve, reject) => {
+      uni.getFileSystemManager().readFile({
+        filePath,
+        encoding: 'base64',
+        success: (result) => resolve(`data:image/jpeg;base64,${result.data}`),
+        fail: reject,
+      });
+    });
+  }
+  if (typeof fetch === 'function') {
+    const response = await fetch(filePath);
+    const blob = await response.blob();
+    return await blobToDataUrl(blob);
+  }
+  throw new Error('FILE_API_UNSUPPORTED');
 };
 
-const reportMessage = (msg) => {
-  uni.showActionSheet({
-    itemList: ['色情/裸露', '暴力/违法', '仇恨/骚扰', '事实错误/误导'],
-    success: async ({ tapIndex }) => {
-      const reason = ['色情/裸露', '暴力/违法', '仇恨/骚扰', '事实错误/误导'][tapIndex];
+const chooseAttachment = () => {
+  uni.chooseImage({
+    count: 1,
+    sizeType: ['compressed'],
+    success: async (result) => {
+      const filePath = result.tempFilePaths?.[0];
+      if (!filePath) return;
       try {
-        const res = await requestWithAuth({
-          url: `${API_BASE}/ai/report`,
-          method: 'POST',
-          data: {
-            user_id: userId.value,
-            conversation_id: currentConvId.value,
-            reason,
-            message_content: msg.content || '',
-          },
-        });
-        uni.showToast({ title: res.data.msg || '已提交', icon: 'none' });
-      } catch (e) {}
+        const base64 = await filePathToDataUrl(filePath);
+        attachment.value = {
+          preview: filePath,
+          base64,
+        };
+      } catch (error) {
+        uni.showToast({ title: '当前平台暂不支持附件上传', icon: 'none' });
+      }
     },
   });
 };
 
+const clearAttachment = () => {
+  attachment.value = null;
+};
+
+const ensureConversationReady = async () => {
+  if (activeConversationId.value) return activeConversationId.value;
+  return await createConversation();
+};
+
+const extractResponseText = (data) => {
+  if (typeof data === 'string') return data;
+  if (typeof ArrayBuffer !== 'undefined' && data instanceof ArrayBuffer && typeof TextDecoder !== 'undefined') {
+    return new TextDecoder('utf-8').decode(data);
+  }
+  if (data && typeof data === 'object' && typeof data.data === 'string') {
+    return data.data;
+  }
+  if (data && typeof data === 'object') {
+    try {
+      return JSON.stringify(data);
+    } catch (error) {}
+  }
+  return String(data || '');
+};
+
+const replaceLoadingBubble = (message) => {
+  const nextMessages = [...messages.value];
+  const loadingIndex = nextMessages.findIndex((item) => item.id === 'assistant-loading');
+  if (loadingIndex === -1) {
+    nextMessages.push(message);
+  } else {
+    nextMessages.splice(loadingIndex, 1, message);
+  }
+  messages.value = nextMessages;
+};
+
+const sendPreparedPrompt = async (prompt) => {
+  draft.value = prompt;
+  await sendMessage();
+};
+
 const sendMessage = async () => {
-  const text = inputText.value.trim();
-  if ((!text && !selectedImageBase64.value) || isLoading.value) return;
+  if (isSending.value || !canSend.value) return;
+  const text = draft.value.trim();
+  const imagePayload = attachment.value;
+  draft.value = '';
+  attachment.value = null;
+  inputFocused.value = false;
 
-  const userMsg = { role: 'user', content: text, image: selectedImagePreview.value || null };
-  messages.value.push(userMsg);
-  inputText.value = '';
-  const imgBase64 = selectedImageBase64.value;
-  removeImage();
+  messages.value = [
+    ...messages.value,
+    buildMessage({
+      role: 'user',
+      content: text,
+      image: imagePayload?.base64 || '',
+      key: `user-${Date.now()}`,
+    }),
+    {
+      id: 'assistant-loading',
+      role: 'assistant',
+      text: '正在思考...',
+      html: '',
+      imageUrl: '',
+      mediaType: '',
+      mediaUrl: '',
+      suggestions: [],
+    },
+  ];
+  await scrollToBottom();
 
-  messages.value.push({ role: 'ai', content: '' });
-  isLoading.value = true;
-  scrollToBottom();
-  const aiIndex = messages.value.length - 1;
-
+  isSending.value = true;
   try {
-    // #ifdef H5
-    const response = await fetch(`${API_BASE}/chat`, {
-      method: 'POST',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        user_id: userId.value,
-        message: text,
-        image_base64: imgBase64,
-        conversation_id: currentConvId.value,
-        model: currentModel.value,
-      }),
-    });
-
-    if (response.status === 401) {
-      redirectToLogin();
-      return;
-    }
-    if (!response.ok || !response.body) throw new Error('REQUEST_FAILED');
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      messages.value[aiIndex].content += chunk;
-      normalizeAIMessage(messages.value[aiIndex]);
-      scrollToBottom();
-    }
-    // #endif
-
-    // #ifndef H5
-    const response = await requestWithAuth({
+    const conversationId = await ensureConversationReady();
+    const res = await requestWithAuth({
       url: `${API_BASE}/chat`,
       method: 'POST',
-      header: { 'Content-Type': 'application/json' },
       data: {
         user_id: userId.value,
+        conversation_id: conversationId,
         message: text,
-        image_base64: imgBase64,
-        conversation_id: currentConvId.value,
-        model: currentModel.value,
+        image_base64: imagePayload?.base64 || '',
       },
     });
-    messages.value[aiIndex].content = typeof response.data === 'string' ? response.data : '服务返回异常';
-    normalizeAIMessage(messages.value[aiIndex]);
-    // #endif
-
-    normalizeAIMessage(messages.value[aiIndex]);
-    fetchBalance();
-  } catch (e) {
-    messages.value[aiIndex].content = '网络错误，请检查后端服务是否运行。';
+    replaceLoadingBubble(
+      buildMessage({
+        role: 'assistant',
+        content: extractResponseText(res.data),
+        key: `assistant-${Date.now()}`,
+      }),
+    );
+    await Promise.all([syncBalance(), syncConversations()]);
+  } catch (error) {
+    replaceLoadingBubble(
+      buildMessage({
+        role: 'assistant',
+        content: '当前请求未完成，请稍后重试。',
+        key: `assistant-error-${Date.now()}`,
+      }),
+    );
   } finally {
-    isLoading.value = false;
-    scrollToBottom();
+    isSending.value = false;
+    await scrollToBottom();
   }
 };
 
-onLoad(() => {
+const consumePendingPrompt = async () => {
+  const prompt = uni.getStorageSync('pending_prompt');
+  if (!prompt || isSending.value) return;
+  uni.removeStorageSync('pending_prompt');
+  await startNewConversation();
+  await sendPreparedPrompt(String(prompt));
+};
+
+const syncPage = async () => {
   if (!ensureLoggedIn()) return;
-  const storedId = uni.getStorageSync('user_id');
-  if (!storedId) {
+  const storedUserId = Number(uni.getStorageSync('user_id') || 0);
+  if (!storedUserId) {
     redirectToLogin('请先登录');
     return;
   }
-  userId.value = storedId;
-  initApp();
-});
+  userId.value = storedUserId;
+  await Promise.all([syncBalance(), syncConversations()]);
+  if (activeConversationId.value) {
+    await loadHistory(activeConversationId.value);
+  } else if (!conversations.value.length) {
+    messages.value = [];
+  }
+  await consumePendingPrompt();
+};
 
 onShow(() => {
-  if (!ensureLoggedIn()) return;
-  fetchBalance();
-  const pending = uni.getStorageSync('pending_prompt');
-  if (pending) {
-    uni.removeStorageSync('pending_prompt');
-    inputText.value = pending;
-    nextTick(() => sendMessage());
-  }
+  syncPage();
 });
-
-const initApp = async () => {
-  await fetchBalance();
-  await loadConversations();
-  if (conversations.value.length > 0) {
-    currentConvId.value = conversations.value[0].id;
-    await loadHistory();
-  } else {
-    await createConversation();
-  }
-};
 </script>
 
 <style scoped>
 .chat-page {
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
-  background: #fff;
+  background:
+    radial-gradient(circle at top right, rgba(129, 140, 248, 0.18), transparent 28%),
+    linear-gradient(180deg, #f9fbff 0%, var(--color-page) 18%, var(--color-page) 100%);
   display: flex;
   flex-direction: column;
   padding-bottom: calc(56px + var(--safe-area-bottom, 0px));
 }
 
-.sidebar-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.28);
-  z-index: 40;
-}
-
-.sidebar {
-  position: fixed;
-  top: 0;
-  left: -280px;
-  width: 280px;
-  height: 100vh;
-  background: #fff;
-  border-right: 1px solid #eceff4;
-  box-shadow: 6px 0 18px rgba(32, 43, 67, 0.06);
-  transition: left 0.28s ease;
-  z-index: 41;
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar-open {
-  left: 0;
-}
-
-.sidebar-header {
-  height: calc(60px + var(--safe-area-top, 0px));
-  padding: calc(8px + var(--safe-area-top, 0px)) 16px 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #eceff4;
-}
-
-.sidebar-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #232939;
-}
-
-.sidebar-new-btn {
-  font-size: 12px;
-  color: #6670e8;
-  border: 1px solid #d7dcfb;
-  border-radius: 999px;
-  padding: 6px 10px;
-}
-
-.sidebar-search {
-  padding: 12px 16px;
-}
-
-.sidebar-search-input {
-  width: 100%;
-  height: 36px;
-  border-radius: 12px;
-  background: #f6f8fb;
-  padding: 0 12px;
-  font-size: 13px;
-  color: #232939;
-}
-
-.sidebar-list {
-  flex: 1;
-}
-
-.sidebar-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border-bottom: 1px solid #f0f2f6;
-}
-
-.sidebar-item-active {
-  background: #f8f9fc;
-}
-
-.sidebar-copy {
-  flex: 1;
-  min-width: 0;
-}
-
-.sidebar-item-title {
-  display: block;
-  color: #232939;
-  font-size: 14px;
-  font-weight: 500;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.sidebar-item-date {
-  display: block;
-  margin-top: 4px;
-  color: #9aa3b3;
-  font-size: 11px;
-}
-
-.sidebar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.sidebar-action {
-  color: #a6adbb;
-  font-size: 14px;
-}
-
-.sidebar-action-delete {
-  color: #c7ceda;
-}
-
 .topbar {
-  height: calc(60px + var(--safe-area-top, 0px));
-  padding: calc(8px + var(--safe-area-top, 0px)) 14px 0;
+  height: calc(72px + var(--safe-area-top, 0px));
+  padding: calc(12px + var(--safe-area-top, 0px)) var(--space-16) 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  border-bottom: 1px solid #eceff4;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(224, 231, 255, 0.7);
   flex-shrink: 0;
 }
 
 .menu-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: rgba(224, 231, 255, 0.42);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: var(--space-4);
 }
 
 .menu-line {
-  width: 15px;
+  width: 16px;
   height: 2px;
-  border-radius: 2px;
-  background: #61697b;
+  border-radius: 999px;
+  background: var(--color-text-secondary);
 }
 
-.header-copy {
+.title-wrap {
   flex: 1;
   min-width: 0;
   text-align: center;
 }
 
-.header-title {
+.topbar-title {
   display: block;
-  font-size: 18px;
-  font-weight: 700;
-  color: #1f2430;
+  color: var(--color-text-primary);
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 600;
 }
 
-.header-subtitle {
+.topbar-subtitle {
   display: block;
   margin-top: 2px;
-  font-size: 12px;
-  color: #9aa3b3;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .balance-pill {
-  min-width: 70px;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 10px;
-  border: 1px solid #dde3ec;
+  min-width: 72px;
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .balance-icon,
 .balance-value {
-  color: #2b3140;
-  font-size: 14px;
+  color: var(--color-primary);
+  font-size: 15px;
+  line-height: 22px;
   font-weight: 600;
 }
 
-.model-sheet {
-  padding: 8px 14px 10px;
-  background: #fff;
-  border-bottom: 1px solid #eceff4;
+.conversation-scroll {
+  padding: 12px 0 10px;
+  background: rgba(255, 255, 255, 0.72);
   flex-shrink: 0;
 }
 
-.model-row {
-  display: flex;
+.conversation-row {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
+  gap: var(--space-8);
+  padding: 0 var(--space-16);
 }
 
-.model-row-active {
-  background: #f7f8fc;
+.conversation-chip {
+  max-width: 180px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background: rgba(243, 244, 246, 0.96);
+  border: 1px solid rgba(209, 213, 219, 0.7);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-.model-icon {
-  font-size: 18px;
+.conversation-chip-active {
+  background: var(--color-primary);
+  border-color: transparent;
+  color: var(--color-text-inverse);
+  box-shadow: var(--shadow-card);
 }
 
-.model-copy {
-  flex: 1;
+.conversation-chip-new {
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--color-primary);
+  border-color: rgba(79, 70, 229, 0.16);
 }
 
-.model-name {
-  display: block;
-  font-size: 14px;
-  color: #232939;
+.conversation-chip-plus {
+  font-size: 16px;
+  line-height: 1;
   font-weight: 600;
 }
 
-.model-desc {
-  display: block;
-  margin-top: 3px;
-  font-size: 12px;
-  color: #99a1b0;
-}
-
-.model-check {
-  color: #6670e8;
-  font-size: 14px;
-  font-weight: 700;
+.conversation-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message-scroll {
   flex: 1;
   min-height: 0;
-  background: #fff;
+  padding: 0 var(--space-16);
 }
 
-.message-stack {
-  padding: 18px 16px 24px;
+.empty-state {
+  padding: var(--space-32) 0 var(--space-24);
+}
+
+.empty-mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 20px;
+  background: var(--color-primary-gradient);
+  box-shadow: var(--shadow-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-inverse);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 700;
+}
+
+.empty-title {
+  display: block;
+  margin-top: var(--space-16);
+  color: var(--color-text-primary);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 700;
+}
+
+.empty-desc {
+  display: block;
+  margin-top: var(--space-8);
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.empty-prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-12);
+  margin-top: var(--space-24);
+}
+
+.empty-prompt-card {
+  min-height: 92px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(224, 231, 255, 0.92);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .message-row {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: var(--space-12);
+  margin-bottom: var(--space-16);
+}
+
+.message-row-ai {
+  justify-content: flex-start;
 }
 
 .message-row-user {
   justify-content: flex-end;
 }
 
-.message-avatar {
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
+.ai-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  box-shadow: var(--shadow-card);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: 2px;
-}
-
-.message-bubble-wrap {
-  position: relative;
-  max-width: 84%;
-}
-
-.message-bubble {
-  border-radius: 16px;
-  padding: 14px 16px;
-  font-size: 15px;
-  line-height: 1.65;
-  word-break: break-word;
-}
-
-.message-bubble-ai {
-  background: #fff;
-  border: 1px solid #dfe4ee;
-  color: #232939;
-}
-
-.message-bubble-user {
-  background: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
-  color: #fff;
-}
-
-.chat-img,
-.chat-video {
-  max-width: 100%;
-  border-radius: 12px;
-  margin: 6px 0;
-}
-
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-}
-
-.dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #b3b9c5;
-  animation: bounce 1.2s infinite ease-in-out;
-}
-
-.dot:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.dot:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-@keyframes bounce {
-  0%, 80%, 100% { transform: scale(0.5); opacity: 0.6; }
-  40% { transform: scale(1); opacity: 1; }
-}
-
-.longpress-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 92px;
-  background: #fff;
-  border: 1px solid #e6e9ef;
-  border-radius: 12px;
-  box-shadow: 0 10px 18px rgba(32, 43, 67, 0.08);
-  overflow: hidden;
-  z-index: 8;
-}
-
-.menu-opt {
-  padding: 10px 14px;
-  color: #232939;
+  color: var(--color-text-inverse);
   font-size: 13px;
-  border-bottom: 1px solid #f1f3f7;
-}
-
-.menu-opt:last-child {
-  border-bottom: none;
-}
-
-.menu-danger {
-  color: #fa6a67;
-}
-
-.input-panel {
-  padding: 14px 14px 16px;
-  background: #fff;
-  border-top: 1px solid #eceff4;
+  line-height: 18px;
+  font-weight: 600;
   flex-shrink: 0;
 }
 
-.input-shell {
-  height: 50px;
-  border-radius: 16px;
-  border: 1px solid #dfe4ee;
-  background: #fff;
+.message-stack {
+  max-width: 75%;
   display: flex;
-  align-items: center;
-  padding: 0 6px 0 14px;
+  flex-direction: column;
+  gap: var(--space-8);
 }
 
-.chat-input {
-  flex: 1;
-  height: 100%;
+.message-row-user .message-stack {
+  align-items: flex-end;
+}
+
+.message-bubble {
+  overflow: hidden;
+  padding: 12px 16px;
+  box-shadow: var(--shadow-card);
+}
+
+.message-bubble-ai {
+  border-radius: 12px 4px 12px 12px;
+  background: var(--color-surface-muted);
+}
+
+.message-bubble-user {
+  border-radius: 12px 12px 4px 12px;
+  background: var(--color-primary);
+}
+
+.bubble-text {
+  color: var(--color-text-secondary);
   font-size: 15px;
-  color: #232939;
+  line-height: 22px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.input-actions {
+.bubble-text-user {
+  color: var(--color-text-inverse);
+}
+
+.bubble-rich-text {
+  color: var(--color-text-secondary);
+  font-size: 15px;
+  line-height: 22px;
+  word-break: break-word;
+}
+
+.bubble-image,
+.bubble-video {
+  width: 100%;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(17, 24, 39, 0.04);
+}
+
+.bubble-image:last-child,
+.bubble-video:last-child {
+  margin-bottom: 0;
+}
+
+.bubble-video {
+  min-height: 180px;
+}
+
+.bubble-suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.bubble-suggestion {
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(224, 231, 255, 0.72);
+  color: var(--color-primary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.chat-bottom-anchor {
+  height: 8px;
+}
+
+.composer-shell {
+  padding: 8px var(--space-16) var(--space-16);
+  background: rgba(255, 255, 255, 0.92);
+  border-top: 1px solid rgba(224, 231, 255, 0.72);
+  backdrop-filter: blur(18px);
+  flex-shrink: 0;
+}
+
+.attachment-preview {
+  margin-bottom: var(--space-12);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(243, 244, 246, 0.92);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-.image-btn {
-  width: 34px;
-  height: 34px;
-  border: none;
-  background: transparent;
-  color: #8892a4;
+.attachment-preview-image {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.attachment-preview-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.attachment-remove {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(209, 213, 219, 0.64);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-8);
+}
+
+.composer-action {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
   font-size: 24px;
   line-height: 1;
-  padding: 0;
+}
+
+.composer-input-wrap {
+  flex: 1;
+  min-height: 48px;
+  max-height: 132px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+}
+
+.composer-input-focus {
+  border-color: var(--color-primary);
+  background: #fafafa;
+}
+
+.composer-input {
+  width: 100%;
+  max-height: 110px;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  line-height: 22px;
+  background: transparent;
+}
+
+.composer-placeholder {
+  color: var(--color-text-tertiary);
+  font-size: 15px;
 }
 
 .send-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #6670e8 0%, #5d62c9 100%);
+  min-width: 48px;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  box-shadow: var(--shadow-card);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .send-btn-disabled {
-  opacity: 0.5;
+  background: var(--color-border);
+  opacity: 0.82;
+}
+
+.send-btn-loading {
+  color: var(--color-text-inverse);
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 600;
 }
 
 .send-icon {
-  color: #fff;
-  font-size: 16px;
-}
-
-.image-preview {
-  margin-top: 10px;
-  display: inline-flex;
-  align-items: flex-start;
   position: relative;
+  width: 18px;
+  height: 18px;
 }
 
-.preview-img {
-  width: 60px;
-  height: 60px;
-  border-radius: 12px;
-}
-
-.remove-img-btn {
+.send-icon-plane {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #fa6a67;
-  color: #fff;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  right: 0;
+  top: 1px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 14px solid rgba(255, 255, 255, 0.98);
+}
+
+.send-icon-tail {
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 9px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  transform: rotate(-24deg);
+  transform-origin: left center;
+}
+
+:deep(.bubble-rich-text p) {
+  margin: 0;
+}
+
+:deep(.bubble-rich-text p + p),
+:deep(.bubble-rich-text ul),
+:deep(.bubble-rich-text ol),
+:deep(.bubble-rich-text blockquote),
+:deep(.bubble-rich-text div),
+:deep(.bubble-rich-text table) {
+  margin-top: 10px;
+}
+
+@media screen and (max-width: 375px) {
+  .empty-prompt-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .message-stack {
+    max-width: 82%;
+  }
 }
 </style>
