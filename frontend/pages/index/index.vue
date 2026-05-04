@@ -6,13 +6,35 @@
         <view class="menu-line"></view>
         <view class="menu-line"></view>
       </view>
-      <view class="title-wrap">
+      <view class="title-wrap" hover-class="is-pressed" hover-stay-time="80" @click="toggleModelMenu">
         <text class="topbar-title">AI Chat</text>
-        <text class="topbar-subtitle">Doubao</text>
+        <view class="topbar-model-row">
+          <text class="topbar-subtitle">{{ currentModelLabel }}</text>
+          <text class="topbar-model-caret" :class="{ 'topbar-model-caret-open': showModelMenu }">⌄</text>
+        </view>
       </view>
       <view class="balance-pill">
         <text class="balance-icon">⚡</text>
         <text class="balance-value">{{ balance }}</text>
+      </view>
+    </view>
+
+    <view v-if="showModelMenu" class="model-mask" @click="closeModelMenu"></view>
+    <view v-if="showModelMenu" class="model-menu">
+      <view
+        v-for="item in modelOptions"
+        :key="item.value"
+        class="model-option"
+        :class="{ 'model-option-active': currentModel === item.value }"
+        hover-class="is-pressed"
+        hover-stay-time="80"
+        @click="selectModel(item.value)"
+      >
+        <view class="model-option-copy">
+          <text class="model-option-title">{{ item.label }}</text>
+          <text class="model-option-desc">{{ item.desc }}</text>
+        </view>
+        <text v-if="currentModel === item.value" class="model-option-check">✓</text>
       </view>
     </view>
 
@@ -175,6 +197,14 @@ const starterPrompts = [
   '写一份周报，语气专业但不生硬',
 ];
 
+const modelOptions = [
+  { value: 'doubao', label: 'Doubao', desc: '响应快，适合日常对话' },
+  { value: 'gemini', label: 'Gemini', desc: '适合轻量多场景问答' },
+];
+
+const supportedModelValues = modelOptions.map((item) => item.value);
+const storedModel = uni.getStorageSync('chat_model');
+
 const userId = ref(0);
 const balance = ref(0);
 const conversations = ref([]);
@@ -186,8 +216,14 @@ const scrollAnchor = ref('');
 const inputFocused = ref(false);
 const attachment = ref(null);
 const showHistoryPanel = ref(false);
+const showModelMenu = ref(false);
+const currentModel = ref(supportedModelValues.includes(storedModel) ? storedModel : 'doubao');
 
 const canSend = computed(() => Boolean(draft.value.trim() || attachment.value));
+const currentModelLabel = computed(() => {
+  const match = modelOptions.find((item) => item.value === currentModel.value);
+  return match?.label || 'Doubao';
+});
 
 const normalizeStoredImage = (value = '') => {
   if (!value) return '';
@@ -301,6 +337,7 @@ const startNewConversation = async () => {
   draft.value = '';
   attachment.value = null;
   showHistoryPanel.value = false;
+  showModelMenu.value = false;
   await scrollToBottom();
 };
 
@@ -338,11 +375,27 @@ const clearCurrentConversation = async () => {
 };
 
 const openConversationMenu = () => {
+  showModelMenu.value = false;
   showHistoryPanel.value = !showHistoryPanel.value;
 };
 
 const closeConversationMenu = () => {
   showHistoryPanel.value = false;
+};
+
+const toggleModelMenu = () => {
+  showHistoryPanel.value = false;
+  showModelMenu.value = !showModelMenu.value;
+};
+
+const closeModelMenu = () => {
+  showModelMenu.value = false;
+};
+
+const selectModel = (value) => {
+  currentModel.value = value;
+  uni.setStorageSync('chat_model', value);
+  showModelMenu.value = false;
 };
 
 const handleHistoryAction = async (action) => {
@@ -495,6 +548,7 @@ const sendMessage = async () => {
         conversation_id: conversationId,
         message: text,
         image_base64: imagePayload?.base64 || '',
+        model: currentModel.value,
       },
     });
     replaceLoadingBubble(
@@ -598,6 +652,12 @@ onShow(() => {
   flex: 1;
   min-width: 0;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 0;
 }
 
 .topbar-title {
@@ -609,11 +669,94 @@ onShow(() => {
 }
 
 .topbar-subtitle {
-  display: block;
-  margin-top: 2px;
   color: var(--color-text-tertiary);
   font-size: 13px;
   line-height: 18px;
+}
+
+.topbar-model-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.topbar-model-caret {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  line-height: 1;
+  transform: translateY(1px);
+}
+
+.topbar-model-caret-open {
+  transform: rotate(180deg) translateY(-1px);
+}
+
+.model-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  background: transparent;
+}
+
+.model-menu {
+  position: absolute;
+  top: calc(62px + var(--safe-area-top, 0px));
+  left: 50%;
+  z-index: 19;
+  width: min(72vw, 248px);
+  padding: 8px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: var(--shadow-floating);
+  border: 1px solid rgba(224, 231, 255, 0.92);
+  transform: translateX(-50%);
+  animation: dropdown-slide-in 180ms ease both;
+}
+
+.model-option {
+  padding: 12px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.model-option + .model-option {
+  margin-top: 2px;
+}
+
+.model-option-active {
+  background: rgba(224, 231, 255, 0.52);
+}
+
+.model-option-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-option-title {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.model-option-desc {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.model-option-check {
+  color: var(--color-primary);
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .history-mask {
@@ -825,6 +968,18 @@ onShow(() => {
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+@keyframes dropdown-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 }
 
