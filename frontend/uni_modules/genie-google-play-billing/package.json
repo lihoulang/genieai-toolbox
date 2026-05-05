@@ -1,0 +1,12 @@
+{
+  "id": "genie-google-play-billing",
+  "displayName": "Genie Google Play Billing",
+  "version": "1.0.0",
+  "description": "Local UTS plugin for Google Play Billing subscriptions",
+  "keywords": [
+    "google-play",
+    "billing",
+    "subscription",
+    "uts"
+  ]
+}

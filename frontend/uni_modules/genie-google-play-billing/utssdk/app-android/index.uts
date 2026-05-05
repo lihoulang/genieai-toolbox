@@ -1,0 +1,391 @@
+import { UTSAndroid } from "io.dcloud.uts"
+import Activity from "android.app.Activity"
+import Context from "android.content.Context"
+import ArrayList from "java.util.ArrayList"
+import BillingClient from "com.android.billingclient.api.BillingClient"
+import BillingClientStateListener from "com.android.billingclient.api.BillingClientStateListener"
+import BillingFlowParams from "com.android.billingclient.api.BillingFlowParams"
+import BillingResult from "com.android.billingclient.api.BillingResult"
+import ProductDetails from "com.android.billingclient.api.ProductDetails"
+import ProductDetailsResponseListener from "com.android.billingclient.api.ProductDetailsResponseListener"
+import Purchase from "com.android.billingclient.api.Purchase"
+import PurchasesResponseListener from "com.android.billingclient.api.PurchasesResponseListener"
+import PurchasesUpdatedListener from "com.android.billingclient.api.PurchasesUpdatedListener"
+import QueryProductDetailsParams from "com.android.billingclient.api.QueryProductDetailsParams"
+import QueryProductDetailsResult from "com.android.billingclient.api.QueryProductDetailsResult"
+import QueryPurchasesParams from "com.android.billingclient.api.QueryPurchasesParams"
+
+let purchaseBillingClient: BillingClient | null = null
+let pendingPurchaseResolve: ((result: UTSJSONObject) => void) | null = null
+let pendingPurchaseReject: ((error: Error) => void) | null = null
+let cachedProductDetails: Array<ProductDetails> = []
+
+function getAppContext(): Context | null {
+  return UTSAndroid.getAppContext()
+}
+
+function getUniActivity(): Activity | null {
+  return UTSAndroid.getUniActivity()
+}
+
+function buildError(message: string): Error {
+  return new Error(message)
+}
+
+function ensureActivity(): Activity {
+  const activity = getUniActivity()
+  if (activity == null) {
+    throw buildError("当前页面未绑定 Android Activity，无法发起 Google Play 购买")
+  }
+  return activity
+}
+
+function closePurchaseClient(): void {
+  if (purchaseBillingClient != null) {
+    purchaseBillingClient!.endConnection()
+    purchaseBillingClient = null
+  }
+}
+
+function purchaseStateLabel(state: number): string {
+  if (state == Purchase.PurchaseState.PURCHASED) {
+    return "PURCHASED"
+  }
+  if (state == Purchase.PurchaseState.PENDING) {
+    return "PENDING"
+  }
+  return "UNSPECIFIED"
+}
+
+function buildPurchasePayload(purchase: Purchase): UTSJSONObject {
+  const products = purchase.getProducts()
+  return {
+    productId: products.size() > 0 ? products.get(0) : "",
+    products: products.toArray(),
+    orderId: purchase.getOrderId() ?? "",
+    purchaseToken: purchase.getPurchaseToken(),
+    purchaseState: purchaseStateLabel(purchase.getPurchaseState()),
+    acknowledged: purchase.isAcknowledged(),
+    packageName: getAppContext()?.getPackageName() ?? "",
+  } as UTSJSONObject
+}
+
+function findCachedProduct(productId: string): ProductDetails | null {
+  for (let i = 0; i < cachedProductDetails.length; i++) {
+    const item = cachedProductDetails[i]
+    if (item.getProductId() == productId) {
+      return item
+    }
+  }
+  return null
+}
+
+class PurchaseUpdateListener implements PurchasesUpdatedListener {
+  override onPurchasesUpdated(billingResult: BillingResult, purchases: MutableList<Purchase> | null): void {
+    const code = billingResult.getResponseCode()
+    if (code == BillingClient.BillingResponseCode.OK && purchases != null && purchases.size() > 0) {
+      const payload = buildPurchasePayload(purchases.get(0))
+      if (pendingPurchaseResolve != null) {
+        pendingPurchaseResolve!(payload)
+      }
+    } else if (code == BillingClient.BillingResponseCode.USER_CANCELED) {
+      if (pendingPurchaseReject != null) {
+        pendingPurchaseReject!(buildError("用户已取消购买"))
+      }
+    } else {
+      const message = billingResult.getDebugMessage() ?? "Google Play 返回了未知错误"
+      if (pendingPurchaseReject != null) {
+        pendingPurchaseReject!(buildError(message))
+      }
+    }
+    pendingPurchaseResolve = null
+    pendingPurchaseReject = null
+    closePurchaseClient()
+  }
+}
+
+const globalPurchaseListener = new PurchaseUpdateListener()
+
+function createBillingClient(listener: PurchasesUpdatedListener): BillingClient {
+  const context = getAppContext()
+  if (context == null) {
+    throw buildError("未获取到 Android Context，无法初始化 Google Play Billing")
+  }
+  return BillingClient
+    .newBuilder(context)
+    .setListener(listener)
+    .enablePendingPurchases()
+    .build()
+}
+
+class ConnectionListener implements BillingClientStateListener {
+  private client: BillingClient
+  private onReady: (client: BillingClient) => void
+  private onError: (message: string) => void
+
+  constructor(client: BillingClient, onReady: (client: BillingClient) => void, onError: (message: string) => void) {
+    super()
+    this.client = client
+    this.onReady = onReady
+    this.onError = onError
+  }
+
+  override onBillingSetupFinished(result: BillingResult): void {
+    if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+      this.onReady(this.client)
+      return
+    }
+    this.client.endConnection()
+    this.onError(result.getDebugMessage() ?? "Google Play Billing 初始化失败")
+  }
+
+  override onBillingServiceDisconnected(): void {
+  }
+}
+
+function connectBillingClient(client: BillingClient, onReady: (client: BillingClient) => void, onError: (message: string) => void): void {
+  client.startConnection(new ConnectionListener(client, onReady, onError))
+}
+
+export function isBillingSupported(): Promise<UTSJSONObject> {
+  return new Promise((resolve, reject) => {
+    try {
+      const client = createBillingClient(globalPurchaseListener)
+      connectBillingClient(
+        client,
+        (readyClient) => {
+          const result = readyClient.isFeatureSupported(BillingClient.FeatureType.SUBSCRIPTIONS)
+          const supported = result.getResponseCode() == BillingClient.BillingResponseCode.OK
+          readyClient.endConnection()
+          resolve({
+            supported: supported,
+            message: supported ? "" : (result.getDebugMessage() ?? "Google Play 不支持订阅能力"),
+          } as UTSJSONObject)
+        },
+        (message) => reject(buildError(message))
+      )
+    } catch (error) {
+      reject(error as Error)
+    }
+  })
+}
+
+class ProductDetailsListener implements ProductDetailsResponseListener {
+  private client: BillingClient
+  private resolveFn: (result: Array<UTSJSONObject>) => void
+  private rejectFn: (error: Error) => void
+
+  constructor(client: BillingClient, resolveFn: (result: Array<UTSJSONObject>) => void, rejectFn: (error: Error) => void) {
+    super()
+    this.client = client
+    this.resolveFn = resolveFn
+    this.rejectFn = rejectFn
+  }
+
+  override onProductDetailsResponse(billingResult: BillingResult, queryResult: QueryProductDetailsResult): void {
+    if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+      this.client.endConnection()
+      this.rejectFn(buildError(billingResult.getDebugMessage() ?? "Google Play 商品查询失败"))
+      return
+    }
+
+    const detailsList = queryResult.getProductDetailsList()
+    cachedProductDetails = []
+    const result = [] as Array<UTSJSONObject>
+    for (let i = 0; i < detailsList.size(); i++) {
+      const details = detailsList.get(i)
+      cachedProductDetails.push(details)
+      const offers = details.getSubscriptionOfferDetails()
+      if (offers == null || offers.size() == 0) {
+        result.push({
+          productId: details.getProductId(),
+          title: details.getTitle() ?? details.getName() ?? "",
+          description: details.getDescription() ?? "",
+          offerToken: "",
+          basePlanId: "",
+          offerId: "",
+          price: "",
+          currencyCode: "",
+        } as UTSJSONObject)
+        continue
+      }
+
+      for (let j = 0; j < offers.size(); j++) {
+        const offer = offers.get(j)
+        const pricingPhases = offer.getPricingPhases().getPricingPhaseList()
+        const firstPhase = pricingPhases.size() > 0 ? pricingPhases.get(0) : null
+        result.push({
+          productId: details.getProductId(),
+          title: details.getTitle() ?? details.getName() ?? "",
+          description: details.getDescription() ?? "",
+          offerToken: offer.getOfferToken(),
+          basePlanId: offer.getBasePlanId() ?? "",
+          offerId: offer.getOfferId() ?? "",
+          price: firstPhase != null ? (firstPhase!.getFormattedPrice() ?? "") : "",
+          currencyCode: firstPhase != null ? (firstPhase!.getPriceCurrencyCode() ?? "") : "",
+        } as UTSJSONObject)
+      }
+    }
+
+    this.client.endConnection()
+    this.resolveFn(result)
+  }
+}
+
+export function querySubscriptionProducts(productIds: Array<string>): Promise<Array<UTSJSONObject>> {
+  return new Promise((resolve, reject) => {
+    if (productIds.length == 0) {
+      resolve([] as Array<UTSJSONObject>)
+      return
+    }
+
+    try {
+      const client = createBillingClient(globalPurchaseListener)
+      connectBillingClient(
+        client,
+        (readyClient) => {
+          const productList = new ArrayList<QueryProductDetailsParams.Product>()
+          for (let i = 0; i < productIds.length; i++) {
+            productList.add(
+              QueryProductDetailsParams.Product
+                .newBuilder()
+                .setProductId(productIds[i])
+                .setProductType(BillingClient.ProductType.SUBS)
+                .build()
+            )
+          }
+
+          const params = QueryProductDetailsParams
+            .newBuilder()
+            .setProductList(productList)
+            .build()
+
+          readyClient.queryProductDetailsAsync(
+            params,
+            new ProductDetailsListener(readyClient, resolve, reject)
+          )
+        },
+        (message) => reject(buildError(message))
+      )
+    } catch (error) {
+      reject(error as Error)
+    }
+  })
+}
+
+export function purchaseSubscription(params: UTSJSONObject): Promise<UTSJSONObject> {
+  return new Promise((resolve, reject) => {
+    try {
+      const productId = String(params["productId"] ?? "")
+      const offerToken = String(params["offerToken"] ?? "")
+      if (productId.length == 0) {
+        reject(buildError("productId 不能为空"))
+        return
+      }
+
+      const activity = ensureActivity()
+      const details = findCachedProduct(productId)
+      if (details == null) {
+        reject(buildError("未命中本地商品缓存，请先查询 Google Play 商品"))
+        return
+      }
+
+      purchaseBillingClient = createBillingClient(globalPurchaseListener)
+      pendingPurchaseResolve = resolve
+      pendingPurchaseReject = reject
+
+      connectBillingClient(
+        purchaseBillingClient!,
+        (readyClient) => {
+          const productDetailsParamsBuilder = BillingFlowParams.ProductDetailsParams
+            .newBuilder()
+            .setProductDetails(details!)
+          if (offerToken.length > 0) {
+            productDetailsParamsBuilder.setOfferToken(offerToken)
+          }
+
+          const productDetailsParams = productDetailsParamsBuilder.build()
+          const productParamsList = new ArrayList<BillingFlowParams.ProductDetailsParams>()
+          productParamsList.add(productDetailsParams)
+
+          const flowParams = BillingFlowParams
+            .newBuilder()
+            .setProductDetailsParamsList(productParamsList)
+            .build()
+
+          const result = readyClient.launchBillingFlow(activity, flowParams)
+          if (result.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+            pendingPurchaseResolve = null
+            pendingPurchaseReject = null
+            closePurchaseClient()
+            reject(buildError(result.getDebugMessage() ?? "无法拉起 Google Play 购买流程"))
+          }
+        },
+        (message) => {
+          pendingPurchaseResolve = null
+          pendingPurchaseReject = null
+          closePurchaseClient()
+          reject(buildError(message))
+        }
+      )
+    } catch (error) {
+      pendingPurchaseResolve = null
+      pendingPurchaseReject = null
+      closePurchaseClient()
+      reject(error as Error)
+    }
+  })
+}
+
+class ActivePurchasesListener implements PurchasesResponseListener {
+  private client: BillingClient
+  private resolveFn: (result: Array<UTSJSONObject>) => void
+  private rejectFn: (error: Error) => void
+
+  constructor(client: BillingClient, resolveFn: (result: Array<UTSJSONObject>) => void, rejectFn: (error: Error) => void) {
+    super()
+    this.client = client
+    this.resolveFn = resolveFn
+    this.rejectFn = rejectFn
+  }
+
+  override onQueryPurchasesResponse(billingResult: BillingResult, purchases: MutableList<Purchase>): void {
+    if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+      this.client.endConnection()
+      this.rejectFn(buildError(billingResult.getDebugMessage() ?? "查询订阅失败"))
+      return
+    }
+
+    const result = [] as Array<UTSJSONObject>
+    for (let i = 0; i < purchases.size(); i++) {
+      result.push(buildPurchasePayload(purchases.get(i)))
+    }
+    this.client.endConnection()
+    this.resolveFn(result)
+  }
+}
+
+export function queryActiveSubscriptions(): Promise<Array<UTSJSONObject>> {
+  return new Promise((resolve, reject) => {
+    try {
+      const client = createBillingClient(globalPurchaseListener)
+      connectBillingClient(
+        client,
+        (readyClient) => {
+          const params = QueryPurchasesParams
+            .newBuilder()
+            .setProductType(BillingClient.ProductType.SUBS)
+            .build()
+
+          readyClient.queryPurchasesAsync(
+            params,
+            new ActivePurchasesListener(readyClient, resolve, reject)
+          )
+        },
+        (message) => reject(buildError(message))
+      )
+    } catch (error) {
+      reject(error as Error)
+    }
+  })
+}

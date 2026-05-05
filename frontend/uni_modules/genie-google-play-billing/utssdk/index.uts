@@ -1,0 +1,18 @@
+export function isBillingSupported(): Promise<UTSJSONObject> {
+  return Promise.resolve({
+    supported: false,
+    message: 'Google Play Billing 仅支持 Android App',
+  } as UTSJSONObject)
+}
+
+export function querySubscriptionProducts(productIds: Array<string>): Promise<Array<UTSJSONObject>> {
+  return Promise.resolve([] as Array<UTSJSONObject>)
+}
+
+export function purchaseSubscription(params: UTSJSONObject): Promise<UTSJSONObject> {
+  return Promise.reject(new Error('当前平台不支持 Google Play Billing'))
+}
+
+export function queryActiveSubscriptions(): Promise<Array<UTSJSONObject>> {
+  return Promise.resolve([] as Array<UTSJSONObject>)
+}

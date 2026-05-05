@@ -6,3 +6,4 @@ pydantic>=2.0.0
 sqlalchemy>=2.0.0
 dashscope>=1.20.0
 python-multipart>=0.0.6
+google-auth>=2.35.0

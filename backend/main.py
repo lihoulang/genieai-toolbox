@@ -12,7 +12,7 @@ import time
 import hashlib
 from base64 import b64decode, b64encode
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import requests
 import uvicorn
@@ -47,6 +47,8 @@ DOUBAO_API_KEY = os.environ.get("DOUBAO_API_KEY", "")
 DOUBAO_API_URL = os.environ.get("DOUBAO_API_URL", "https://ark.cn-beijing.volces.com/api/v3/chat/completions")
 DOUBAO_MODEL_NAME = os.environ.get("DOUBAO_MODEL_NAME", "doubao-seed-1-6-lite-250615")
 DOUBAO_MODEL_ID_MAP_RAW = os.environ.get("DOUBAO_MODEL_ID_MAP", "")
+MEMBERSHIP_CODE_MAP_RAW = os.environ.get("MEMBERSHIP_CODE_MAP", "")
+GOOGLE_PLAY_SUBSCRIPTION_MAP_RAW = os.environ.get("GOOGLE_PLAY_SUBSCRIPTION_MAP", "")
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_API_URL = os.environ.get("GEMINI_API_URL", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
@@ -57,11 +59,28 @@ RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", "60"))
 RATE_LIMIT_MAX = int(os.environ.get("RATE_LIMIT_MAX", "30"))
 SESSION_TTL_DAYS = int(os.environ.get("SESSION_TTL_DAYS", "30"))
 ALLOWED_ORIGINS_RAW = os.environ.get("ALLOWED_ORIGINS", "*")
+FREE_PIN_LIMIT = int(os.environ.get("FREE_PIN_LIMIT", "3"))
+VIP_PIN_LIMIT = int(os.environ.get("VIP_PIN_LIMIT", "20"))
+GOOGLE_PLAY_PACKAGE_NAME = os.environ.get("GOOGLE_PLAY_PACKAGE_NAME", "").strip()
+GOOGLE_PLAY_SERVICE_ACCOUNT_FILE = os.environ.get("GOOGLE_PLAY_SERVICE_ACCOUNT_FILE", "").strip()
+GOOGLE_PLAY_SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "").strip()
+GOOGLE_PLAY_API_BASE = os.environ.get("GOOGLE_PLAY_API_BASE", "https://androidpublisher.googleapis.com/androidpublisher/v3")
+GOOGLE_PLAY_RTDN_BEARER_TOKEN = os.environ.get("GOOGLE_PLAY_RTDN_BEARER_TOKEN", "").strip()
 
 DEFAULT_DOUBAO_MODEL_ID_MAP = {
     "doubao-seed-1-8-251228": "ep-20260113140843-nbf4d",
     "doubao-seed-1-6-lite-251015": "ep-20260128151607-9qnld",
     "doubao-1-5-lite-32k-250115": "ep-20260128151956-wllft",
+}
+
+DEFAULT_MEMBERSHIP_CODE_MAP = {
+    "DEMO30": {"days": 30, "level": 1, "label": "月度会员"},
+    "DEMO365": {"days": 365, "level": 2, "label": "年度会员"},
+}
+
+DEFAULT_GOOGLE_PLAY_SUBSCRIPTION_MAP = {
+    "genie.monthly": {"level": 1, "label": "Google Play 月度会员"},
+    "genie.yearly": {"level": 2, "label": "Google Play 年度会员"},
 }
 
 
@@ -75,6 +94,15 @@ def today_str() -> str:
 
 def parse_dt(value: str) -> datetime:
     return datetime.strptime(value, DATETIME_FMT)
+
+
+def parse_dt_safe(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return parse_dt(value)
+    except ValueError:
+        return None
 
 
 def parse_origins(raw: str) -> list[str]:
@@ -95,7 +123,52 @@ def parse_model_id_map(raw: str, fallback: dict[str, str]) -> dict[str, str]:
     return dict(fallback)
 
 
+def parse_membership_code_map(raw: str, fallback: dict[str, dict]) -> dict[str, dict]:
+    if not raw.strip():
+        return dict(fallback)
+    try:
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            return dict(fallback)
+        normalized = {}
+        for code, config in parsed.items():
+            if not isinstance(config, dict):
+                continue
+            days = int(config.get("days", 0))
+            level = max(int(config.get("level", 1)), 1)
+            label = str(config.get("label", "")).strip() or f"Lv{level} 会员"
+            if days > 0:
+                normalized[str(code).strip().upper()] = {"days": days, "level": level, "label": label}
+        return normalized or dict(fallback)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return dict(fallback)
+
+
+def parse_google_subscription_map(raw: str, fallback: dict[str, dict]) -> dict[str, dict]:
+    if not raw.strip():
+        return dict(fallback)
+    try:
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            return dict(fallback)
+        normalized = {}
+        for key, config in parsed.items():
+            if not isinstance(config, dict):
+                continue
+            level = max(int(config.get("level", 1)), 1)
+            label = str(config.get("label", "")).strip() or f"Google Play Lv{level} 会员"
+            normalized[str(key).strip()] = {"level": level, "label": label}
+        return normalized or dict(fallback)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return dict(fallback)
+
+
 DOUBAO_MODEL_ID_MAP = parse_model_id_map(DOUBAO_MODEL_ID_MAP_RAW, DEFAULT_DOUBAO_MODEL_ID_MAP)
+MEMBERSHIP_CODE_MAP = parse_membership_code_map(MEMBERSHIP_CODE_MAP_RAW, DEFAULT_MEMBERSHIP_CODE_MAP)
+GOOGLE_PLAY_SUBSCRIPTION_MAP = parse_google_subscription_map(
+    GOOGLE_PLAY_SUBSCRIPTION_MAP_RAW,
+    DEFAULT_GOOGLE_PLAY_SUBSCRIPTION_MAP,
+)
 
 
 # ===========================================
@@ -105,6 +178,12 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def ensure_column(cursor: sqlite3.Cursor, table_name: str, column_name: str, definition: str):
+    columns = {item["name"] for item in cursor.execute(f"PRAGMA table_info({table_name})").fetchall()}
+    if column_name not in columns:
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
 
 
 def init_db():
@@ -122,6 +201,10 @@ def init_db():
         invited_by INTEGER DEFAULT 0,
         created_at TEXT
     )""")
+    ensure_column(c, "users", "vip_level", "INTEGER DEFAULT 0")
+    ensure_column(c, "users", "vip_until", "TEXT DEFAULT ''")
+    ensure_column(c, "users", "vip_joined_at", "TEXT DEFAULT ''")
+    ensure_column(c, "users", "vip_source", "TEXT DEFAULT ''")
     c.execute("""CREATE TABLE IF NOT EXISTS conversations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -160,10 +243,54 @@ def init_db():
         message_content TEXT,
         created_at TEXT NOT NULL
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS membership_redemptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT UNIQUE NOT NULL,
+        user_id INTEGER NOT NULL,
+        plan_label TEXT DEFAULT '',
+        vip_level INTEGER DEFAULT 1,
+        granted_days INTEGER DEFAULT 0,
+        granted_until TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS google_play_subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        package_name TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        base_plan_id TEXT DEFAULT '',
+        offer_id TEXT DEFAULT '',
+        purchase_token TEXT UNIQUE NOT NULL,
+        linked_purchase_token TEXT DEFAULT '',
+        latest_order_id TEXT DEFAULT '',
+        subscription_state TEXT DEFAULT '',
+        acknowledgement_state TEXT DEFAULT '',
+        auto_renew_enabled INTEGER DEFAULT 0,
+        expiry_time TEXT DEFAULT '',
+        started_at TEXT DEFAULT '',
+        is_test_purchase INTEGER DEFAULT 0,
+        external_account_id TEXT DEFAULT '',
+        obfuscated_external_account_id TEXT DEFAULT '',
+        raw_response TEXT DEFAULT '',
+        last_synced_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS google_play_notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        package_name TEXT DEFAULT '',
+        purchase_token TEXT DEFAULT '',
+        subscription_id TEXT DEFAULT '',
+        notification_type INTEGER DEFAULT 0,
+        payload TEXT DEFAULT '',
+        created_at TEXT NOT NULL
+    )""")
     c.execute("CREATE INDEX IF NOT EXISTS idx_msg_user_conv ON messages(user_id, conversation_id)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_balance_user ON balance_logs(user_id)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_session_token ON user_sessions(token_hash)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_membership_redemption_code ON membership_redemptions(code)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_gp_sub_purchase_token ON google_play_subscriptions(purchase_token)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_gp_sub_user_id ON google_play_subscriptions(user_id)")
     conn.commit()
     conn.close()
 
@@ -213,6 +340,21 @@ class AIReportRequest(BaseModel):
     conversation_id: int = 0
     reason: str
     message_content: str = ""
+
+
+class MembershipRedeemRequest(BaseModel):
+    code: str
+
+
+class GooglePlayVerifyRequest(BaseModel):
+    purchase_token: str
+    product_id: str = ""
+    package_name: str = ""
+
+
+class GooglePlaySyncRequest(BaseModel):
+    purchase_token: str
+    package_name: str = ""
 
 
 # ===========================================
@@ -332,6 +474,410 @@ def ensure_conversation_owner(conv_id: int, user_id: int):
 # ===========================================
 def generate_invite_code() -> str:
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+
+def get_vip_name(level: int) -> str:
+    if level >= 2:
+        return "年度会员"
+    if level >= 1:
+        return "月度会员"
+    return "普通用户"
+
+
+def build_membership_payload(level: int, vip_until: str) -> dict:
+    expires_at = parse_dt_safe(vip_until)
+    active = bool(level > 0 and expires_at and expires_at > datetime.utcnow())
+    effective_level = level if active else 0
+    return {
+        "vip_level": effective_level,
+        "vip_active": active,
+        "vip_name": get_vip_name(effective_level),
+        "vip_until": vip_until if active else "",
+        "pin_limit": VIP_PIN_LIMIT if active else FREE_PIN_LIMIT,
+        "can_export_history": active,
+    }
+
+
+def get_user_membership(user_id: int) -> dict:
+    conn = get_db()
+    row = conn.execute("SELECT vip_level, vip_until FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    return build_membership_payload(int(row["vip_level"] or 0), row["vip_until"] or "")
+
+
+def activate_membership(user_id: int, level: int, days: int, source: str, plan_label: str, code: str = "") -> dict:
+    conn = get_db()
+    row = conn.execute("SELECT vip_level, vip_until, vip_joined_at FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    now_dt = datetime.utcnow()
+    current_until = parse_dt_safe(row["vip_until"] or "")
+    base_dt = current_until if current_until and current_until > now_dt else now_dt
+    new_until = (base_dt + timedelta(days=max(days, 1))).strftime(DATETIME_FMT)
+    new_level = max(int(row["vip_level"] or 0), max(level, 1))
+
+    conn.execute(
+        "UPDATE users SET vip_level = ?, vip_until = ?, vip_joined_at = ?, vip_source = ? WHERE id = ?",
+        (
+            new_level,
+            new_until,
+            row["vip_joined_at"] or now_str(),
+            source[:50],
+            user_id,
+        ),
+    )
+    if code:
+        conn.execute(
+            "INSERT INTO membership_redemptions (code, user_id, plan_label, vip_level, granted_days, granted_until, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (code, user_id, plan_label[:50], new_level, max(days, 1), new_until, now_str()),
+        )
+    conn.commit()
+    conn.close()
+
+    membership = build_membership_payload(new_level, new_until)
+    membership["plan_label"] = plan_label
+    membership["granted_days"] = max(days, 1)
+    return membership
+
+
+def set_membership_expiry(user_id: int, level: int, vip_until: str, source: str, plan_label: str) -> dict:
+    conn = get_db()
+    row = conn.execute("SELECT vip_level FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="用户不存在")
+    conn.execute(
+        "UPDATE users SET vip_level = ?, vip_until = ?, vip_joined_at = CASE WHEN vip_joined_at = '' THEN ? ELSE vip_joined_at END, vip_source = ? WHERE id = ?",
+        (max(level, 1), vip_until, now_str(), source[:50], user_id),
+    )
+    conn.commit()
+    conn.close()
+    membership = build_membership_payload(max(level, 1), vip_until)
+    membership["plan_label"] = plan_label
+    return membership
+
+
+def clear_google_play_membership_if_owned(user_id: int) -> None:
+    conn = get_db()
+    row = conn.execute("SELECT vip_source FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not row:
+        conn.close()
+        return
+    if not str(row["vip_source"] or "").startswith("google_play"):
+        conn.close()
+        return
+    conn.execute(
+        "UPDATE users SET vip_until = ?, vip_source = ? WHERE id = ?",
+        (now_str(), "google_play_inactive", user_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def parse_google_time(value: str) -> tuple[datetime | None, str]:
+    if not value:
+        return None, ""
+    try:
+        normalized = value.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        dt_utc = dt.astimezone(timezone.utc)
+        return dt_utc.replace(tzinfo=None), dt_utc.strftime(DATETIME_FMT)
+    except ValueError:
+        return None, ""
+    except Exception:
+        return None, ""
+
+
+def resolve_google_play_plan(product_id: str, base_plan_id: str = "") -> dict | None:
+    if product_id and base_plan_id:
+        composite = f"{product_id}:{base_plan_id}"
+        if composite in GOOGLE_PLAY_SUBSCRIPTION_MAP:
+            return GOOGLE_PLAY_SUBSCRIPTION_MAP[composite]
+    if product_id in GOOGLE_PLAY_SUBSCRIPTION_MAP:
+        return GOOGLE_PLAY_SUBSCRIPTION_MAP[product_id]
+    return None
+
+
+def is_google_subscription_entitled(subscription_state: str, expiry_dt: datetime | None) -> bool:
+    active_states = {"SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD", "SUBSCRIPTION_STATE_CANCELED"}
+    if subscription_state not in active_states:
+        return False
+    return bool(expiry_dt and expiry_dt > datetime.utcnow())
+
+
+def require_google_play_config(package_name: str = "") -> str:
+    effective_package_name = (package_name or GOOGLE_PLAY_PACKAGE_NAME).strip()
+    if not effective_package_name:
+        raise HTTPException(status_code=500, detail="未配置 Google Play 包名")
+    if not GOOGLE_PLAY_SERVICE_ACCOUNT_FILE and not GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:
+        raise HTTPException(status_code=500, detail="未配置 Google Play 服务账号")
+    return effective_package_name
+
+
+def get_google_play_access_token() -> str:
+    try:
+        from google.auth.transport.requests import Request as GoogleAuthRequest
+        from google.oauth2 import service_account
+    except ImportError as exc:
+        raise HTTPException(status_code=500, detail=f"缺少 google-auth 依赖：{exc}") from exc
+
+    info = None
+    if GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:
+        try:
+            info = json.loads(GOOGLE_PLAY_SERVICE_ACCOUNT_JSON)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=500, detail=f"Google Play 服务账号 JSON 无效：{exc}") from exc
+
+    try:
+        if info:
+            creds = service_account.Credentials.from_service_account_info(
+                info,
+                scopes=["https://www.googleapis.com/auth/androidpublisher"],
+            )
+        else:
+            creds = service_account.Credentials.from_service_account_file(
+                GOOGLE_PLAY_SERVICE_ACCOUNT_FILE,
+                scopes=["https://www.googleapis.com/auth/androidpublisher"],
+            )
+        creds.refresh(GoogleAuthRequest())
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"获取 Google Play access token 失败：{exc}") from exc
+
+    if not creds.token:
+        raise HTTPException(status_code=500, detail="Google Play access token 为空")
+    return str(creds.token)
+
+
+def google_play_request(method: str, path: str, json_body: dict | None = None) -> dict:
+    access_token = get_google_play_access_token()
+    url = f"{GOOGLE_PLAY_API_BASE.rstrip('/')}/{path.lstrip('/')}"
+    try:
+        resp = requests.request(
+            method.upper(),
+            url,
+            headers={"Authorization": f"Bearer {access_token}"},
+            json=json_body,
+            timeout=30,
+        )
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail=f"Google Play 请求失败：{exc}") from exc
+
+    if resp.status_code >= 400:
+        detail = resp.text[:500]
+        raise HTTPException(status_code=502, detail=f"Google Play 接口异常：HTTP {resp.status_code} {detail}")
+    if not resp.text.strip():
+        return {}
+    try:
+        return resp.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=f"Google Play 返回了非 JSON 响应：{exc}") from exc
+
+
+def google_play_fetch_subscription_purchase(package_name: str, purchase_token: str) -> dict:
+    return google_play_request(
+        "GET",
+        f"applications/{package_name}/purchases/subscriptionsv2/tokens/{purchase_token}",
+    )
+
+
+def google_play_acknowledge_subscription(package_name: str, product_id: str, purchase_token: str) -> None:
+    if not product_id:
+        return
+    google_play_request(
+        "POST",
+        f"applications/{package_name}/purchases/subscriptions/{product_id}/tokens/{purchase_token}:acknowledge",
+        json_body={},
+    )
+
+
+def extract_google_play_subscription_context(payload: dict, product_id_hint: str = "") -> dict:
+    line_items = payload.get("lineItems") or []
+    primary_item = line_items[0] if line_items else {}
+    for item in line_items:
+        item_expiry_dt, _ = parse_google_time(item.get("expiryTime", ""))
+        current_expiry_dt, _ = parse_google_time(primary_item.get("expiryTime", ""))
+        if item_expiry_dt and (not current_expiry_dt or item_expiry_dt > current_expiry_dt):
+            primary_item = item
+
+    product_id = primary_item.get("productId") or product_id_hint or ""
+    offer_details = primary_item.get("offerDetails") or {}
+    auto_plan = primary_item.get("autoRenewingPlan") or {}
+    expiry_dt, expiry_str = parse_google_time(primary_item.get("expiryTime", ""))
+    start_dt, start_str = parse_google_time(payload.get("startTime", ""))
+
+    return {
+        "subscription_state": payload.get("subscriptionState", ""),
+        "acknowledgement_state": payload.get("acknowledgementState", ""),
+        "purchase_token": payload.get("latestPurchaseOrderId", ""),
+        "latest_order_id": payload.get("latestOrderId", "") or payload.get("latestPurchaseOrderId", ""),
+        "product_id": product_id,
+        "base_plan_id": offer_details.get("basePlanId", ""),
+        "offer_id": offer_details.get("offerId", ""),
+        "linked_purchase_token": payload.get("linkedPurchaseToken", ""),
+        "auto_renew_enabled": 1 if auto_plan.get("autoRenewEnabled") else 0,
+        "expiry_dt": expiry_dt,
+        "expiry_str": expiry_str,
+        "started_at": start_str,
+        "is_test_purchase": 1 if payload.get("testPurchase") else 0,
+        "external_account_id": (payload.get("externalAccountIdentifiers") or {}).get("externalAccountId", ""),
+        "obfuscated_external_account_id": (payload.get("externalAccountIdentifiers") or {}).get("obfuscatedExternalAccountId", ""),
+        "line_item_count": len(line_items),
+    }
+
+
+def upsert_google_play_subscription(user_id: int, package_name: str, purchase_token: str, purchase_payload: dict, context: dict) -> None:
+    conn = get_db()
+    conn.execute(
+        """
+        INSERT INTO google_play_subscriptions (
+            user_id, package_name, product_id, base_plan_id, offer_id, purchase_token, linked_purchase_token,
+            latest_order_id, subscription_state, acknowledgement_state, auto_renew_enabled, expiry_time,
+            started_at, is_test_purchase, external_account_id, obfuscated_external_account_id, raw_response,
+            last_synced_at, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(purchase_token) DO UPDATE SET
+            user_id = excluded.user_id,
+            package_name = excluded.package_name,
+            product_id = excluded.product_id,
+            base_plan_id = excluded.base_plan_id,
+            offer_id = excluded.offer_id,
+            linked_purchase_token = excluded.linked_purchase_token,
+            latest_order_id = excluded.latest_order_id,
+            subscription_state = excluded.subscription_state,
+            acknowledgement_state = excluded.acknowledgement_state,
+            auto_renew_enabled = excluded.auto_renew_enabled,
+            expiry_time = excluded.expiry_time,
+            started_at = excluded.started_at,
+            is_test_purchase = excluded.is_test_purchase,
+            external_account_id = excluded.external_account_id,
+            obfuscated_external_account_id = excluded.obfuscated_external_account_id,
+            raw_response = excluded.raw_response,
+            last_synced_at = excluded.last_synced_at
+        """,
+        (
+            user_id,
+            package_name,
+            context["product_id"],
+            context["base_plan_id"],
+            context["offer_id"],
+            purchase_token,
+            context["linked_purchase_token"],
+            context["latest_order_id"],
+            context["subscription_state"],
+            context["acknowledgement_state"],
+            context["auto_renew_enabled"],
+            context["expiry_str"],
+            context["started_at"],
+            context["is_test_purchase"],
+            context["external_account_id"],
+            context["obfuscated_external_account_id"],
+            json.dumps(purchase_payload, ensure_ascii=False),
+            now_str(),
+            now_str(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def sync_google_subscription_purchase(
+    user_id: int,
+    purchase_token: str,
+    package_name: str = "",
+    product_id_hint: str = "",
+    source: str = "google_play_client_verify",
+) -> dict:
+    purchase_token = purchase_token.strip()
+    if not purchase_token:
+        raise HTTPException(status_code=400, detail="purchase_token 不能为空")
+
+    effective_package_name = require_google_play_config(package_name)
+    purchase_payload = google_play_fetch_subscription_purchase(effective_package_name, purchase_token)
+    context = extract_google_play_subscription_context(purchase_payload, product_id_hint=product_id_hint)
+    if not context["product_id"]:
+        raise HTTPException(status_code=400, detail="Google Play 返回的订阅缺少 productId")
+
+    plan = resolve_google_play_plan(context["product_id"], context["base_plan_id"])
+    if not plan:
+        raise HTTPException(status_code=400, detail=f"未配置该订阅商品映射：{context['product_id']}")
+
+    if context["acknowledgement_state"] == "ACKNOWLEDGEMENT_STATE_PENDING":
+        google_play_acknowledge_subscription(effective_package_name, context["product_id"], purchase_token)
+        context["acknowledgement_state"] = "ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED"
+
+    upsert_google_play_subscription(user_id, effective_package_name, purchase_token, purchase_payload, context)
+
+    entitled = is_google_subscription_entitled(context["subscription_state"], context["expiry_dt"])
+    membership = None
+    if entitled:
+        membership = set_membership_expiry(
+            user_id=user_id,
+            level=int(plan["level"]),
+            vip_until=context["expiry_str"],
+            source=source,
+            plan_label=str(plan["label"]),
+        )
+    else:
+        clear_google_play_membership_if_owned(user_id)
+        membership = get_user_membership(user_id)
+
+    return {
+        "package_name": effective_package_name,
+        "purchase_token": purchase_token,
+        "product_id": context["product_id"],
+        "base_plan_id": context["base_plan_id"],
+        "subscription_state": context["subscription_state"],
+        "acknowledgement_state": context["acknowledgement_state"],
+        "expiry_time": context["expiry_str"],
+        "auto_renew_enabled": bool(context["auto_renew_enabled"]),
+        "is_test_purchase": bool(context["is_test_purchase"]),
+        "membership": membership,
+    }
+
+
+def get_google_play_subscription_owner(purchase_token: str) -> int | None:
+    conn = get_db()
+    row = conn.execute("SELECT user_id FROM google_play_subscriptions WHERE purchase_token = ?", (purchase_token,)).fetchone()
+    conn.close()
+    if not row:
+        return None
+    return int(row["user_id"])
+
+
+def save_google_play_notification(package_name: str, purchase_token: str, subscription_id: str, notification_type: int, payload: dict) -> None:
+    conn = get_db()
+    conn.execute(
+        """
+        INSERT INTO google_play_notifications (package_name, purchase_token, subscription_id, notification_type, payload, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            package_name,
+            purchase_token,
+            subscription_id,
+            notification_type,
+            json.dumps(payload, ensure_ascii=False),
+            now_str(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def verify_google_play_rtdn_request(request: Request) -> None:
+    if not GOOGLE_PLAY_RTDN_BEARER_TOKEN:
+        return
+    auth = request.headers.get("Authorization", "").strip()
+    expected = f"Bearer {GOOGLE_PLAY_RTDN_BEARER_TOKEN}"
+    if auth != expected:
+        raise HTTPException(status_code=401, detail="RTDN 鉴权失败")
+
 
 
 def get_user_balance(user_id: int) -> int:
@@ -509,12 +1055,13 @@ async def get_user_info(user_id: int, request: Request):
     enforce_self(request, user_id)
     conn = get_db()
     row = conn.execute(
-        "SELECT username, balance, last_sign_date, nickname, invite_code, sign_streak FROM users WHERE id = ?",
+        "SELECT username, balance, last_sign_date, nickname, invite_code, sign_streak, vip_level, vip_until FROM users WHERE id = ?",
         (user_id,),
     ).fetchone()
     conn.close()
     if not row:
         return {"code": 404}
+    membership = build_membership_payload(int(row["vip_level"] or 0), row["vip_until"] or "")
     return {
         "code": 200,
         "username": row["username"],
@@ -523,6 +1070,7 @@ async def get_user_info(user_id: int, request: Request):
         "nickname": row["nickname"] or "",
         "invite_code": row["invite_code"] or "",
         "sign_streak": int(row["sign_streak"] or 0),
+        **membership,
     }
 
 
@@ -571,6 +1119,141 @@ async def get_balance_logs(user_id: int, request: Request):
         "code": 200,
         "data": [{"amount": int(item["amount"]), "reason": item["reason"], "created_at": item["created_at"]} for item in rows],
     }
+
+
+@app.post("/membership/redeem/{user_id}")
+async def redeem_membership(user_id: int, request: Request, payload: MembershipRedeemRequest):
+    enforce_self(request, user_id)
+    code = payload.code.strip().upper()
+    if not code:
+        return {"code": 400, "msg": "请输入兑换码"}
+
+    plan = MEMBERSHIP_CODE_MAP.get(code)
+    if not plan:
+        return {"code": 400, "msg": "兑换码无效"}
+
+    conn = get_db()
+    used = conn.execute("SELECT user_id FROM membership_redemptions WHERE code = ?", (code,)).fetchone()
+    conn.close()
+    if used:
+        return {"code": 400, "msg": "兑换码已使用"}
+
+    membership = activate_membership(
+        user_id=user_id,
+        level=int(plan["level"]),
+        days=int(plan["days"]),
+        source="redeem_code",
+        plan_label=str(plan["label"]),
+        code=code,
+    )
+    return {
+        "code": 200,
+        "msg": f"{membership['plan_label']}已开通，有效期至 {membership['vip_until']}",
+        **membership,
+    }
+
+
+@app.get("/billing/google-play/products")
+async def get_google_play_products():
+    return {
+        "code": 200,
+        "package_name": GOOGLE_PLAY_PACKAGE_NAME,
+        "products": [
+            {"product_id": product_id, "vip_level": int(config["level"]), "label": str(config["label"])}
+            for product_id, config in GOOGLE_PLAY_SUBSCRIPTION_MAP.items()
+        ],
+    }
+
+
+@app.post("/billing/google-play/subscription/verify/{user_id}")
+async def verify_google_play_subscription(user_id: int, request: Request, payload: GooglePlayVerifyRequest):
+    enforce_self(request, user_id)
+    result = sync_google_subscription_purchase(
+        user_id=user_id,
+        purchase_token=payload.purchase_token,
+        package_name=payload.package_name,
+        product_id_hint=payload.product_id,
+        source="google_play_verify",
+    )
+    return {"code": 200, "msg": "Google Play 订阅校验成功", **result}
+
+
+@app.post("/billing/google-play/subscription/sync/{user_id}")
+async def sync_google_play_subscription(user_id: int, request: Request, payload: GooglePlaySyncRequest):
+    enforce_self(request, user_id)
+    result = sync_google_subscription_purchase(
+        user_id=user_id,
+        purchase_token=payload.purchase_token,
+        package_name=payload.package_name,
+        source="google_play_sync",
+    )
+    return {"code": 200, "msg": "Google Play 订阅已同步", **result}
+
+
+@app.get("/billing/google-play/subscriptions/{user_id}")
+async def list_google_play_subscriptions(user_id: int, request: Request):
+    enforce_self(request, user_id)
+    conn = get_db()
+    rows = conn.execute(
+        """
+        SELECT product_id, base_plan_id, purchase_token, latest_order_id, subscription_state,
+               acknowledgement_state, auto_renew_enabled, expiry_time, last_synced_at
+        FROM google_play_subscriptions
+        WHERE user_id = ?
+        ORDER BY id DESC
+        """,
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return {
+        "code": 200,
+        "data": [
+            {
+                "product_id": row["product_id"],
+                "base_plan_id": row["base_plan_id"] or "",
+                "purchase_token": row["purchase_token"],
+                "latest_order_id": row["latest_order_id"] or "",
+                "subscription_state": row["subscription_state"] or "",
+                "acknowledgement_state": row["acknowledgement_state"] or "",
+                "auto_renew_enabled": bool(row["auto_renew_enabled"]),
+                "expiry_time": row["expiry_time"] or "",
+                "last_synced_at": row["last_synced_at"] or "",
+            }
+            for row in rows
+        ],
+    }
+
+
+@app.post("/billing/google-play/rtdn")
+async def handle_google_play_rtdn(request: Request):
+    verify_google_play_rtdn_request(request)
+    payload = await request.json()
+    message = payload.get("message") if isinstance(payload, dict) else None
+    if isinstance(message, dict) and message.get("data"):
+        try:
+            decoded = b64decode(message["data"]).decode("utf-8")
+            payload = json.loads(decoded)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"RTDN data 解析失败：{exc}") from exc
+
+    subscription_notice = payload.get("subscriptionNotification") or {}
+    purchase_token = subscription_notice.get("purchaseToken", "")
+    subscription_id = subscription_notice.get("subscriptionId", "")
+    notification_type = int(subscription_notice.get("notificationType", 0) or 0)
+    package_name = payload.get("packageName", "") or GOOGLE_PLAY_PACKAGE_NAME
+
+    save_google_play_notification(package_name, purchase_token, subscription_id, notification_type, payload)
+
+    owner_user_id = get_google_play_subscription_owner(purchase_token) if purchase_token else None
+    if owner_user_id:
+        sync_google_subscription_purchase(
+            user_id=owner_user_id,
+            purchase_token=purchase_token,
+            package_name=package_name,
+            product_id_hint=subscription_id,
+            source="google_play_rtdn",
+        )
+    return {"code": 200, "msg": "RTDN 已接收", "known_purchase": bool(owner_user_id)}
 
 
 @app.post("/user/update_profile/{user_id}")
@@ -643,6 +1326,17 @@ async def toggle_pin(conv_id: int, request: Request):
     conn = get_db()
     row = conn.execute("SELECT pinned FROM conversations WHERE id = ?", (conv_id,)).fetchone()
     new_val = 0 if (row and row["pinned"]) else 1
+    membership = get_user_membership(user_id)
+    if new_val == 1:
+        pinned_total = int(
+            conn.execute("SELECT COUNT(*) AS total FROM conversations WHERE user_id = ? AND pinned = 1", (user_id,)).fetchone()["total"]
+        )
+        if pinned_total >= membership["pin_limit"]:
+            conn.close()
+            return {
+                "code": 400,
+                "msg": f"当前最多可置顶 {membership['pin_limit']} 个会话，开通会员可提升到 {VIP_PIN_LIMIT} 个。",
+            }
     conn.execute("UPDATE conversations SET pinned = ? WHERE id = ?", (new_val, conv_id))
     conn.commit()
     conn.close()
@@ -692,6 +1386,56 @@ async def get_history(user_id: int, request: Request, conversation_id: int = 0, 
         "code": 200,
         "data": [{"role": normalize_chat_role(item["role"]), "content": item["content"], "image": item["image"]} for item in rows],
         "total": int(total),
+    }
+
+
+@app.get("/history/export/{user_id}")
+async def export_history(user_id: int, request: Request, conversation_id: int = 0):
+    enforce_self(request, user_id)
+    membership = get_user_membership(user_id)
+    if not membership["can_export_history"]:
+        return {"code": 403, "msg": "导出功能为会员专属权益"}
+    if conversation_id:
+        ensure_conversation_owner(conversation_id, user_id)
+
+    conn = get_db()
+    conversations = conn.execute(
+        "SELECT id, title, created_at, pinned FROM conversations WHERE user_id = ? ORDER BY pinned DESC, id DESC",
+        (user_id,),
+    ).fetchall()
+
+    exported = []
+    for item in conversations:
+        conv_id = int(item["id"])
+        if conversation_id and conv_id != conversation_id:
+            continue
+        messages = conn.execute(
+            "SELECT role, content, image FROM messages WHERE user_id = ? AND conversation_id = ? ORDER BY id ASC",
+            (user_id, conv_id),
+        ).fetchall()
+        exported.append(
+            {
+                "conversation_id": conv_id,
+                "title": item["title"] or "新对话",
+                "created_at": item["created_at"] or "",
+                "pinned": int(item["pinned"] or 0),
+                "messages": [
+                    {
+                        "role": normalize_chat_role(message["role"]),
+                        "content": message["content"] or "",
+                        "image": message["image"] or "",
+                    }
+                    for message in messages
+                ],
+            }
+        )
+    conn.close()
+
+    return {
+        "code": 200,
+        "exported_at": now_str(),
+        "conversation_count": len(exported),
+        "data": exported,
     }
 
 

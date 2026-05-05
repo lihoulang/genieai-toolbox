@@ -15,7 +15,89 @@
         <view class="hero-avatar">{{ displayName.charAt(0) }}</view>
         <view class="hero-copy">
           <text class="hero-name">{{ displayName }}</text>
-          <text class="hero-tag">AI Explorer</text>
+          <text class="hero-tag">{{ vipActive ? `${vipName} 已开通` : 'AI Explorer' }}</text>
+        </view>
+      </view>
+
+      <view class="membership-card">
+        <view class="membership-head">
+          <view>
+            <text class="membership-eyebrow">Member Access</text>
+            <text class="membership-title">{{ vipActive ? vipName : '未开通会员' }}</text>
+            <text class="membership-subtitle">{{ membershipSubtitle }}</text>
+          </view>
+          <view class="membership-badge" :class="vipActive ? 'membership-badge-active' : 'membership-badge-idle'">
+            {{ vipActive ? 'VIP' : 'FREE' }}
+          </view>
+        </view>
+
+        <view class="membership-benefits">
+          <view class="membership-benefit" v-for="item in membershipBenefits" :key="item">
+            {{ item }}
+          </view>
+        </view>
+
+        <view class="membership-actions">
+          <view class="membership-btn membership-btn-primary" hover-class="is-pressed" hover-stay-time="80" @click="handleRedeemMembership">
+            {{ vipActive ? '续期会员' : '兑换会员' }}
+          </view>
+          <view
+            class="membership-btn membership-btn-secondary"
+            :class="{ 'membership-btn-disabled': !canExportHistory }"
+            hover-class="is-pressed"
+            hover-stay-time="80"
+            @click="handleExportHistory"
+          >
+            导出对话
+          </view>
+        </view>
+      </view>
+
+      <view class="play-card">
+        <view class="play-card-head">
+          <view>
+            <text class="play-card-eyebrow">Google Play Billing</text>
+            <text class="play-card-title">开通 Google Play 会员</text>
+          </view>
+          <text class="play-card-state" :class="playSupported ? 'play-card-state-ready' : 'play-card-state-idle'">
+            {{ playSupported ? 'READY' : 'WAITING' }}
+          </text>
+        </view>
+
+        <text class="play-card-desc">{{ playStatusText }}</text>
+
+        <view v-if="googlePlayPlans.length" class="play-plan-list">
+          <view class="play-plan" v-for="plan in googlePlayPlans" :key="plan.planKey">
+            <view class="play-plan-copy">
+              <text class="play-plan-title">{{ plan.label }}</text>
+              <text class="play-plan-subtitle">{{ plan.description }}</text>
+            </view>
+            <view class="play-plan-side">
+              <text class="play-plan-price">{{ plan.priceText }}</text>
+              <view
+                class="play-plan-btn"
+                :class="{ 'play-plan-btn-disabled': !playSupported || !plan.offerToken || playPurchasingPlanKey === plan.planKey }"
+                hover-class="is-pressed"
+                hover-stay-time="80"
+                @click="handleGooglePlayPurchase(plan)"
+              >
+                {{ playPurchasingPlanKey === plan.planKey ? '处理中' : '开通' }}
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <view v-else class="play-empty">
+          {{ playProductsLoading ? '正在加载 Google Play 商品...' : '当前还没有可展示的 Google Play 会员商品' }}
+        </view>
+
+        <view class="play-actions">
+          <view class="play-action-btn" hover-class="is-pressed" hover-stay-time="80" @click="refreshGooglePlayProducts">
+            刷新商品
+          </view>
+          <view class="play-action-btn" hover-class="is-pressed" hover-stay-time="80" @click="handleRestoreGooglePlayMembership">
+            恢复购买
+          </view>
         </view>
       </view>
 
@@ -112,6 +194,12 @@ import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { ACCOUNT_DELETION_URL, API_BASE, PRIVACY_POLICY_URL, SUPPORT_URL } from '../../config.js';
 import { clearAuthStorage, ensureLoggedIn, redirectToLogin, requestWithAuth } from '../../utils/auth.js';
+import {
+  getGooglePlayBillingStatus,
+  launchGooglePlaySubscription,
+  queryGooglePlayActiveSubscriptions,
+  queryGooglePlaySubscriptions,
+} from '../../utils/googlePlayBilling.js';
 import { openExternalUrl } from '../../utils/external.js';
 
 const userId = ref(null);
@@ -119,11 +207,53 @@ const username = ref('');
 const nickname = ref('');
 const balance = ref(0);
 const hasSignedToday = ref(false);
+const vipActive = ref(false);
+const vipName = ref('普通用户');
+const vipUntil = ref('');
+const pinLimit = ref(3);
+const canExportHistory = ref(false);
 const isDark = ref(!!uni.getStorageSync('dark_mode'));
 const showBalanceLogs = ref(false);
 const balanceLogs = ref([]);
+const playSupported = ref(false);
+const playStatusText = ref('Google Play 会员购买仅支持 Android App');
+const playProductsLoading = ref(false);
+const playPurchasingPlanKey = ref('');
+const playPackageName = ref('');
+const playBackendProducts = ref([]);
+const playNativeProducts = ref([]);
 
 const displayName = computed(() => nickname.value || username.value || 'User');
+const membershipSubtitle = computed(() => {
+  if (!vipActive.value) return `免费版当前最多置顶 ${pinLimit.value} 个会话`;
+  return `有效期至 ${vipUntil.value || '未设置'}`;
+});
+const membershipBenefits = computed(() => {
+  if (vipActive.value) {
+    return ['对话导出', `置顶上限 ${pinLimit.value} 个`, '会员身份标识'];
+  }
+  return [`免费版最多置顶 ${pinLimit.value} 个会话`, '会员可导出对话', '会员身份标识'];
+});
+const googlePlayPlans = computed(() => {
+  return playBackendProducts.value.map((item) => {
+    const rawKey = String(item.product_id || '');
+    const [productId, basePlanId = ''] = rawKey.split(':');
+    const nativeDetail = playNativeProducts.value.find((detail) => {
+      if (detail.productId !== productId) return false;
+      if (basePlanId && detail.basePlanId && detail.basePlanId !== basePlanId) return false;
+      return true;
+    });
+    return {
+      planKey: basePlanId ? `${productId}:${basePlanId}` : productId,
+      productId,
+      basePlanId,
+      label: item.label || productId,
+      description: nativeDetail?.description || 'Google Play 自动开通，到期随订阅同步',
+      priceText: nativeDetail?.price || '待加载价格',
+      offerToken: nativeDetail?.offerToken || '',
+    };
+  });
+});
 
 const applyDarkMode = (enabled) => {
   isDark.value = enabled;
@@ -153,6 +283,11 @@ const fetchUserInfo = async () => {
       balance.value = res.data.balance;
       hasSignedToday.value = res.data.has_signed_today;
       nickname.value = res.data.nickname || '';
+      vipActive.value = !!res.data.vip_active;
+      vipName.value = res.data.vip_name || '普通用户';
+      vipUntil.value = res.data.vip_until || '';
+      pinLimit.value = Number(res.data.pin_limit || 3);
+      canExportHistory.value = !!res.data.can_export_history;
     }
   } catch (e) {}
 };
@@ -162,6 +297,43 @@ const fetchBalanceLogs = async () => {
     const res = await requestWithAuth({ url: `${API_BASE}/user/balance_logs/${userId.value}` });
     if (res.data.code === 200) balanceLogs.value = res.data.data;
   } catch (e) {}
+};
+
+const fetchGooglePlayProducts = async () => {
+  playProductsLoading.value = true;
+  try {
+    const status = await getGooglePlayBillingStatus();
+    playSupported.value = !!status.supported;
+    playStatusText.value = status.message || (status.supported ? 'Google Play 已就绪，可直接开通会员' : 'Google Play 当前不可用');
+
+    const resp = await requestWithAuth({ url: `${API_BASE}/billing/google-play/products` });
+    if (resp.data.code !== 200) {
+      playBackendProducts.value = [];
+      playNativeProducts.value = [];
+      playStatusText.value = '未能获取会员商品配置';
+      return;
+    }
+
+    playPackageName.value = resp.data.package_name || '';
+    playBackendProducts.value = Array.isArray(resp.data.products) ? resp.data.products : [];
+    if (!playSupported.value || playBackendProducts.value.length === 0) {
+      playNativeProducts.value = [];
+      return;
+    }
+
+    const uniqueProductIds = [...new Set(playBackendProducts.value.map((item) => String(item.product_id || '').split(':')[0]).filter(Boolean))];
+    playNativeProducts.value = await queryGooglePlaySubscriptions(uniqueProductIds);
+    if (playNativeProducts.value.length > 0) {
+      playStatusText.value = 'Google Play 商品已加载，购买后会自动开通会员';
+    } else {
+      playStatusText.value = 'Google Play 已连接，但暂未返回可售商品';
+    }
+  } catch (e) {
+    playNativeProducts.value = [];
+    playStatusText.value = e?.message || 'Google Play 商品加载失败';
+  } finally {
+    playProductsLoading.value = false;
+  }
 };
 
 const handleSign = async () => {
@@ -180,6 +352,125 @@ const handleSign = async () => {
     }
   } catch (e) {
     uni.showToast({ title: '签到失败', icon: 'none' });
+  }
+};
+
+const handleRedeemMembership = () => {
+  uni.showModal({
+    title: vipActive.value ? '续期会员' : '兑换会员',
+    editable: true,
+    placeholderText: '输入兑换码，例如 DEMO30',
+    confirmText: '确认',
+    success: async (res) => {
+      const code = String(res.content || '').trim();
+      if (!res.confirm || !code) return;
+      try {
+        const resp = await requestWithAuth({
+          url: `${API_BASE}/membership/redeem/${userId.value}`,
+          method: 'POST',
+          data: { code },
+        });
+        if (resp.data.code === 200) {
+          uni.showToast({ title: resp.data.msg, icon: 'none' });
+          fetchUserInfo();
+        } else {
+          uni.showToast({ title: resp.data.msg || '兑换失败', icon: 'none' });
+        }
+      } catch (e) {
+        uni.showToast({ title: '兑换失败', icon: 'none' });
+      }
+    },
+  });
+};
+
+const handleExportHistory = async () => {
+  if (!canExportHistory.value) {
+    uni.showToast({ title: '导出为会员权益', icon: 'none' });
+    return;
+  }
+  try {
+    const resp = await requestWithAuth({ url: `${API_BASE}/history/export/${userId.value}` });
+    if (resp.data.code !== 200) {
+      uni.showToast({ title: resp.data.msg || '导出失败', icon: 'none' });
+      return;
+    }
+    const payload = JSON.stringify(resp.data.data, null, 2);
+    uni.setClipboardData({
+      data: payload,
+      success: () => uni.showToast({ title: '已复制导出内容', icon: 'none' }),
+      fail: () => uni.showToast({ title: '导出失败', icon: 'none' }),
+    });
+  } catch (e) {
+    uni.showToast({ title: '导出失败', icon: 'none' });
+  }
+};
+
+const refreshGooglePlayProducts = async () => {
+  await fetchGooglePlayProducts();
+};
+
+const handleGooglePlayPurchase = async (plan) => {
+  if (!playSupported.value) {
+    uni.showToast({ title: playStatusText.value || 'Google Play 当前不可用', icon: 'none' });
+    return;
+  }
+  if (!plan.offerToken) {
+    uni.showToast({ title: '商品信息未准备好，请先刷新商品', icon: 'none' });
+    return;
+  }
+  playPurchasingPlanKey.value = plan.planKey;
+  try {
+    const purchase = await launchGooglePlaySubscription({
+      productId: plan.productId,
+      offerToken: plan.offerToken,
+    });
+    const resp = await requestWithAuth({
+      url: `${API_BASE}/billing/google-play/subscription/verify/${userId.value}`,
+      method: 'POST',
+      data: {
+        purchase_token: purchase.purchaseToken,
+        product_id: purchase.productId || plan.productId,
+        package_name: purchase.packageName || playPackageName.value,
+      },
+    });
+    if (resp.data.code === 200) {
+      uni.showToast({ title: resp.data.msg || '会员已开通', icon: 'none' });
+      await fetchUserInfo();
+    } else {
+      uni.showToast({ title: resp.data.msg || '校验失败', icon: 'none' });
+    }
+  } catch (e) {
+    uni.showToast({ title: e?.message || '购买失败', icon: 'none' });
+  } finally {
+    playPurchasingPlanKey.value = '';
+  }
+};
+
+const handleRestoreGooglePlayMembership = async () => {
+  if (!playSupported.value) {
+    uni.showToast({ title: playStatusText.value || 'Google Play 当前不可用', icon: 'none' });
+    return;
+  }
+  try {
+    const purchases = await queryGooglePlayActiveSubscriptions();
+    if (!purchases.length) {
+      uni.showToast({ title: '没有可恢复的订阅', icon: 'none' });
+      return;
+    }
+    for (const purchase of purchases) {
+      await requestWithAuth({
+        url: `${API_BASE}/billing/google-play/subscription/sync/${userId.value}`,
+        method: 'POST',
+        data: {
+          purchase_token: purchase.purchaseToken,
+          package_name: purchase.packageName || playPackageName.value,
+        },
+      });
+    }
+    await fetchUserInfo();
+    uni.showToast({ title: '已同步 Google Play 会员', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e?.message || '恢复购买失败', icon: 'none' });
   }
 };
 
@@ -246,6 +537,7 @@ onShow(() => {
   applyDarkMode(!!uni.getStorageSync('dark_mode'));
   fetchUserInfo();
   fetchBalanceLogs();
+  fetchGooglePlayProducts();
 });
 </script>
 
@@ -358,8 +650,291 @@ onShow(() => {
   line-height: 18px;
 }
 
+.membership-card {
+  margin: -48px var(--space-16) var(--space-16);
+  padding: var(--space-16);
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.96), rgba(8, 145, 178, 0.9)),
+    var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+  color: var(--color-text-inverse);
+}
+
+.membership-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-16);
+}
+
+.membership-eyebrow,
+.membership-title,
+.membership-subtitle {
+  display: block;
+}
+
+.membership-eyebrow {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(236, 254, 255, 0.82);
+}
+
+.membership-title {
+  margin-top: var(--space-8);
+  font-size: 21px;
+  line-height: 28px;
+  font-weight: 700;
+}
+
+.membership-subtitle {
+  margin-top: var(--space-6);
+  font-size: 13px;
+  line-height: 18px;
+  color: rgba(236, 254, 255, 0.9);
+}
+
+.membership-badge {
+  min-width: 56px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+}
+
+.membership-badge-active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ecfeff;
+}
+
+.membership-badge-idle {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(236, 254, 255, 0.88);
+}
+
+.membership-benefits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin-top: var(--space-16);
+}
+
+.membership-benefit {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 12px;
+  line-height: 16px;
+  color: rgba(240, 249, 255, 0.96);
+}
+
+.membership-actions {
+  display: flex;
+  gap: var(--space-12);
+  margin-top: var(--space-16);
+}
+
+.membership-btn {
+  flex: 1;
+  min-height: 42px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.membership-btn-primary {
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+}
+
+.membership-btn-secondary {
+  border: 1px solid rgba(236, 254, 255, 0.42);
+  color: #ecfeff;
+}
+
+.membership-btn-disabled {
+  opacity: 0.54;
+}
+
+.play-card {
+  margin: 0 var(--space-16) var(--space-16);
+  padding: var(--space-16);
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  border: 1px solid rgba(255, 255, 255, 0.86);
+}
+
+.play-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-16);
+}
+
+.play-card-eyebrow,
+.play-card-title,
+.play-card-desc {
+  display: block;
+}
+
+.play-card-eyebrow {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0f766e;
+}
+
+.play-card-title {
+  margin-top: var(--space-8);
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.play-card-state {
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+}
+
+.play-card-state-ready {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.play-card-state-idle {
+  background: rgba(15, 118, 110, 0.08);
+  color: #0f766e;
+}
+
+.play-card-desc {
+  margin-top: var(--space-12);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-text-tertiary);
+}
+
+.play-plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  margin-top: var(--space-16);
+}
+
+.play-plan {
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, rgba(240, 253, 250, 0.96), rgba(248, 250, 252, 0.98));
+  border: 1px solid rgba(15, 118, 110, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-16);
+}
+
+.play-plan-copy,
+.play-plan-side {
+  display: flex;
+  flex-direction: column;
+}
+
+.play-plan-copy {
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.play-plan-side {
+  align-items: flex-end;
+  gap: var(--space-8);
+  flex-shrink: 0;
+}
+
+.play-plan-title {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.play-plan-subtitle {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--color-text-tertiary);
+}
+
+.play-plan-price {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.play-plan-btn {
+  min-width: 84px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  background: #0f766e;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.play-plan-btn-disabled {
+  opacity: 0.45;
+}
+
+.play-empty {
+  margin-top: var(--space-16);
+  padding: 18px var(--space-12);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.play-actions {
+  display: flex;
+  gap: var(--space-12);
+  margin-top: var(--space-16);
+}
+
+.play-action-btn {
+  flex: 1;
+  min-height: 40px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  background: rgba(15, 118, 110, 0.06);
+  color: #0f766e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
 .balance-card {
-  margin: -16px var(--space-16) var(--space-16);
+  margin: 0 var(--space-16) var(--space-16);
   padding: var(--space-16);
   background: var(--color-surface);
   border-radius: var(--radius-md);
