@@ -8,6 +8,7 @@ import BillingFlowParams from "com.android.billingclient.api.BillingFlowParams"
 import BillingResult from "com.android.billingclient.api.BillingResult"
 import ProductDetails from "com.android.billingclient.api.ProductDetails"
 import ProductDetailsResponseListener from "com.android.billingclient.api.ProductDetailsResponseListener"
+import PendingPurchasesParams from "com.android.billingclient.api.PendingPurchasesParams"
 import Purchase from "com.android.billingclient.api.Purchase"
 import PurchasesResponseListener from "com.android.billingclient.api.PurchasesResponseListener"
 import PurchasesUpdatedListener from "com.android.billingclient.api.PurchasesUpdatedListener"
@@ -59,9 +60,13 @@ function purchaseStateLabel(state: number): string {
 
 function buildPurchasePayload(purchase: Purchase): UTSJSONObject {
   const products = purchase.getProducts()
+  const productIds = [] as Array<string>
+  for (let i: Int = 0; i < products.size; i++) {
+    productIds.push(products.get(i))
+  }
   return {
-    productId: products.size() > 0 ? products.get(0) : "",
-    products: products.toArray(),
+    productId: productIds.length > 0 ? productIds[0] : "",
+    products: productIds,
     orderId: purchase.getOrderId() ?? "",
     purchaseToken: purchase.getPurchaseToken(),
     purchaseState: purchaseStateLabel(purchase.getPurchaseState()),
@@ -83,7 +88,7 @@ function findCachedProduct(productId: string): ProductDetails | null {
 class PurchaseUpdateListener implements PurchasesUpdatedListener {
   override onPurchasesUpdated(billingResult: BillingResult, purchases: MutableList<Purchase> | null): void {
     const code = billingResult.getResponseCode()
-    if (code == BillingClient.BillingResponseCode.OK && purchases != null && purchases.size() > 0) {
+    if (code == BillingClient.BillingResponseCode.OK && purchases != null && purchases.size > 0) {
       const payload = buildPurchasePayload(purchases.get(0))
       if (pendingPurchaseResolve != null) {
         pendingPurchaseResolve!(payload)
@@ -114,7 +119,12 @@ function createBillingClient(listener: PurchasesUpdatedListener): BillingClient 
   return BillingClient
     .newBuilder(context)
     .setListener(listener)
-    .enablePendingPurchases()
+    .enablePendingPurchases(
+      PendingPurchasesParams
+        .newBuilder()
+        .enableOneTimeProducts()
+        .build()
+    )
     .build()
 }
 
@@ -192,11 +202,11 @@ class ProductDetailsListener implements ProductDetailsResponseListener {
     const detailsList = queryResult.getProductDetailsList()
     cachedProductDetails = []
     const result = [] as Array<UTSJSONObject>
-    for (let i = 0; i < detailsList.size(); i++) {
+    for (let i: Int = 0; i < detailsList.size; i++) {
       const details = detailsList.get(i)
       cachedProductDetails.push(details)
       const offers = details.getSubscriptionOfferDetails()
-      if (offers == null || offers.size() == 0) {
+      if (offers == null || offers.size == 0) {
         result.push({
           productId: details.getProductId(),
           title: details.getTitle() ?? details.getName() ?? "",
@@ -210,10 +220,10 @@ class ProductDetailsListener implements ProductDetailsResponseListener {
         continue
       }
 
-      for (let j = 0; j < offers.size(); j++) {
+      for (let j: Int = 0; j < offers.size; j++) {
         const offer = offers.get(j)
         const pricingPhases = offer.getPricingPhases().getPricingPhaseList()
-        const firstPhase = pricingPhases.size() > 0 ? pricingPhases.get(0) : null
+        const firstPhase = pricingPhases.size > 0 ? pricingPhases.get(0) : null
         result.push({
           productId: details.getProductId(),
           title: details.getTitle() ?? details.getName() ?? "",
@@ -276,8 +286,8 @@ export function querySubscriptionProducts(productIds: Array<string>): Promise<Ar
 export function purchaseSubscription(params: UTSJSONObject): Promise<UTSJSONObject> {
   return new Promise((resolve, reject) => {
     try {
-      const productId = String(params["productId"] ?? "")
-      const offerToken = String(params["offerToken"] ?? "")
+      const productId = params.getString("productId") ?? ""
+      const offerToken = params.getString("offerToken") ?? ""
       if (productId.length == 0) {
         reject(buildError("productId 不能为空"))
         return
@@ -357,7 +367,7 @@ class ActivePurchasesListener implements PurchasesResponseListener {
     }
 
     const result = [] as Array<UTSJSONObject>
-    for (let i = 0; i < purchases.size(); i++) {
+    for (let i: Int = 0; i < purchases.size; i++) {
       result.push(buildPurchasePayload(purchases.get(i)))
     }
     this.client.endConnection()
